@@ -20,17 +20,28 @@
 package org.apache.texera.amber.operator.visualization.carpetPlot
 
 import com.fasterxml.jackson.annotation.{JsonProperty, JsonPropertyDescription}
-import com.kjetland.jackson.jsonSchema.annotations.JsonSchemaTitle
+import com.kjetland.jackson.jsonSchema.annotations.{JsonSchemaInject, JsonSchemaTitle}
 import org.apache.texera.amber.core.tuple.{AttributeType, Schema}
 import org.apache.texera.amber.pybuilder.PythonTemplateBuilder.PythonTemplateBuilderStringContext
 import org.apache.texera.amber.pybuilder.PyStringTypes.EncodableString
 import org.apache.texera.amber.core.workflow.PortIdentity
-import org.apache.texera.amber.operator.PythonOperatorDescriptor
+import org.apache.texera.amber.operator.{PythonOperatorDescriptor, StandaloneCodeGenerator}
 import org.apache.texera.amber.operator.metadata.annotations.AutofillAttributeName
 import org.apache.texera.amber.operator.metadata.{OperatorGroupConstants, OperatorInfo}
 import javax.validation.constraints.NotNull
 
-class CarpetPlotOpDesc extends PythonOperatorDescriptor {
+// type constraint: a / b / y are cast to float (astype(float)) to build the
+// carpet grid, so they can only be numeric columns.
+@JsonSchemaInject(json = """
+{
+  "attributeTypeRules": {
+    "a": { "enum": ["integer", "long", "double"] },
+    "b": { "enum": ["integer", "long", "double"] },
+    "y": { "enum": ["integer", "long", "double"] }
+  }
+}
+""")
+class CarpetPlotOpDesc extends PythonOperatorDescriptor with StandaloneCodeGenerator {
 
   @JsonProperty(value = "a", required = true)
   @NotNull(message = "A-axis Attribute cannot be empty")
@@ -120,5 +131,24 @@ class CarpetPlotOpDesc extends PythonOperatorDescriptor {
            |"""
     finalCode.encode
   }
+
+  override def producesDataFrame(): Boolean = false
+
+  override def generateStandaloneCode(): String =
+    s"""table = in1df.dropna(subset=["$a", "$b", "$y"]).copy()
+       |if table.empty:
+       |    print("Carpet plot error: No valid rows after removing nulls")
+       |else:
+       |    table["$a"] = table["$a"].astype(float)
+       |    table["$b"] = table["$b"].astype(float)
+       |    table["$y"] = table["$y"].astype(float)
+       |    fig = go.Figure(go.Carpet(
+       |        a=table["$a"],
+       |        b=table["$b"],
+       |        y=table["$y"]
+       |    ))
+       |    fig.write_json("output.json")
+       |    fig.write_html("output.html")
+       |    print("Carpet plot saved to output.json and output.html")""".stripMargin
 
 }
