@@ -655,25 +655,28 @@ export class MenuComponent implements OnInit, OnDestroy {
     );
 
     this.isTranslatingToPython = true;
-    this.workflowToPythonService.convertToPython(logicalPlan).subscribe({
-      next: response => {
-        this.isTranslatingToPython = false;
-        if (response.type === "success") {
-          this.modalService.create({
-            nzTitle: "Workflow as Python Script",
-            nzContent: `<pre style="max-height:70vh;overflow:auto;white-space:pre-wrap">${response.pythonCode}</pre>`,
-            nzFooter: null,
-            nzWidth: 800,
-          });
-        } else {
-          this.notificationService.error(response.errorMessage ?? "Failed to translate workflow to Python.");
-        }
-      },
-      error: () => {
-        this.isTranslatingToPython = false;
-        this.notificationService.error("Request failed while translating workflow to Python.");
-      },
-    });
+    this.workflowToPythonService
+      .convertToPython(logicalPlan)
+      .pipe(untilDestroyed(this))
+      .subscribe({
+        next: response => {
+          this.isTranslatingToPython = false;
+          if (response.type === "success") {
+            this.modalService.create({
+              nzTitle: "Workflow as Python Script",
+              nzContent: `<pre style="max-height:70vh;overflow:auto;white-space:pre-wrap">${response.pythonCode}</pre>`,
+              nzFooter: null,
+              nzWidth: 800,
+            });
+          } else {
+            this.notificationService.error(response.errorMessage ?? "Failed to translate workflow to Python.");
+          }
+        },
+        error: () => {
+          this.isTranslatingToPython = false;
+          this.notificationService.error("Request failed while translating workflow to Python.");
+        },
+      });
   }
 
   public onClickExportWorkflow(): void {
