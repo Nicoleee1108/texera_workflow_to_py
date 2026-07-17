@@ -59,19 +59,23 @@ object TransformVerificationRunner {
   /** Ops whose two paths legitimately emit the same rows in different orders
     * (JVM hash-bucket iteration vs pandas order). Comparator lex-sorts both
     * sides — a deliberate weakening; only add a class here with a justifying
-    * comment. */
+    * comment.
+    */
   val orderInsensitiveOps: Set[Class[_]] = Set(
-    classOf[IntersectOpDesc],           // mutable.HashSet emit order
-    classOf[DifferenceOpDesc],          // leftHashSet.diff iterator order
+    classOf[IntersectOpDesc], // mutable.HashSet emit order
+    classOf[DifferenceOpDesc], // leftHashSet.diff iterator order
     classOf[SymmetricDifferenceOpDesc], // union of two hash-set diffs
-    classOf[HashJoinOpDesc[_]],         // build-map bucket order vs pd.merge
-    classOf[CartesianProductOpDesc],    // JVM emits per arriving right tuple × stored left (right-major) vs pandas cross-merge left-major
-    classOf[IntervalJoinOpDesc],        // streaming emit per arriving tuple against opposite-side buffer (port-interleaving order) vs pandas batch left-major
-    classOf[AggregateOpDesc]            // hash-partitioned group emit order vs groupby(sort=False) first-occurrence order
+    classOf[HashJoinOpDesc[_]], // build-map bucket order vs pd.merge
+    classOf[CartesianProductOpDesc], // JVM emits per arriving right tuple × stored left (right-major) vs pandas cross-merge left-major
+    classOf[IntervalJoinOpDesc], // streaming emit per arriving tuple against opposite-side buffer (port-interleaving order) vs pandas batch left-major
+    classOf[
+      AggregateOpDesc
+    ] // hash-partitioned group emit order vs groupby(sort=False) first-occurrence order
   )
 
   /** Triaged, explicitly-not-run operators: class → honest reason, shown in
-    * the test report and coverage table. */
+    * the test report and coverage table.
+    */
   val knownIssues: Map[Class[_], String] = Map(
     classOf[UnionOpDesc] ->
       ("variadic input port: generateStandaloneCode assumes exactly 2 " +
@@ -103,7 +107,8 @@ object TransformVerificationRunner {
   final case class Flagged(reason: String) extends Disposition
 
   /** Static classification — cheap (reflection only, no subprocesses), called
-    * at spec construction time to decide test-vs-ignore. */
+    * at spec construction time to decide test-vs-ignore.
+    */
   def disposition(opClass: Class[_ <: LogicalOp]): Disposition =
     knownIssues.get(opClass) match {
       case Some(reason) => Flagged(s"known issue: $reason")
@@ -133,7 +138,8 @@ object TransformVerificationRunner {
     }
 
   /** Execute both paths and assert parity on every declared output port.
-    * Precondition: disposition(opClass) returned Runnable. */
+    * Precondition: disposition(opClass) returned Runnable.
+    */
   def run(opClass: Class[_ <: LogicalOp]): Unit = {
     val testRoot = Files.createTempDirectory(s"verify-${opClass.getSimpleName}-")
 
@@ -162,9 +168,13 @@ object TransformVerificationRunner {
 
     // StandaloneRunner keys inputs by 1-based port index (the inNdf convention).
     val standaloneInputs: Map[Int, Path] =
-      inputs.toSeq.sortBy(_._1.id).zipWithIndex.map {
-        case ((_, path), idx) => (idx + 1) -> path
-      }.toMap
+      inputs.toSeq
+        .sortBy(_._1.id)
+        .zipWithIndex
+        .map {
+          case ((_, path), idx) => (idx + 1) -> path
+        }
+        .toMap
 
     val pathB = StandaloneRunner.run(
       opDesc = opDesc,

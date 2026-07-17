@@ -21,11 +21,7 @@ package org.apache.texera.amber.translator.verify
 
 import com.fasterxml.jackson.databind.node.ObjectNode
 import com.typesafe.scalalogging.LazyLogging
-import org.apache.texera.amber.core.executor.{
-  ExecFactory,
-  OpExecWithClassName,
-  OperatorExecutor
-}
+import org.apache.texera.amber.core.executor.{ExecFactory, OpExecWithClassName, OperatorExecutor}
 import org.apache.texera.amber.core.tuple.{AttributeType, Schema, Tuple, TupleLike}
 import org.apache.texera.amber.core.virtualidentity.{
   ExecutionIdentity,
@@ -105,8 +101,7 @@ object OpExecHarness extends LazyLogging {
     val externalInputs: Set[(PhysicalOpIdentity, PortIdentity)] =
       plan.operators.flatMap { phOp =>
         phOp.inputPorts.keys.collect {
-          case portId
-              if !plan.links.exists(l => l.toOpId == phOp.id && l.toPortId == portId) =>
+          case portId if !plan.links.exists(l => l.toOpId == phOp.id && l.toPortId == portId) =>
             (phOp.id, portId)
         }
       }
@@ -254,7 +249,8 @@ object OpExecHarness extends LazyLogging {
                   s"Op ${phOp.id} emitted to port $outPortId before its output schema was propagated"
                 )
               )
-            val tuple = tupleLike.asInstanceOf[org.apache.texera.amber.core.tuple.SeqTupleLike]
+            val tuple = tupleLike
+              .asInstanceOf[org.apache.texera.amber.core.tuple.SeqTupleLike]
               .enforceSchema(outSchema)
             produced
               .getOrElseUpdate((phOp.id, outPortId), mutable.ArrayBuffer.empty[Tuple]) += tuple

@@ -61,7 +61,8 @@ object ConfigGenerator {
 
   /** Canonical literal for free-form fields; present in the synthetic dataset so
     * filters/comparisons actually match rows. Parses as INTEGER/LONG/DOUBLE and
-    * is a valid STRING. */
+    * is a valid STRING.
+    */
   private val CanonicalString = "1"
 
   /**
@@ -82,17 +83,17 @@ object ConfigGenerator {
       // the registered type id to deserialize the concrete subtype.
       typeNameByClass.get(opClass) match {
         case Some(typeName) => node.put("operatorType", typeName)
-        case None           => return Left(s"${opClass.getSimpleName} not registered in LogicalOp @JsonSubTypes")
+        case None =>
+          return Left(s"${opClass.getSimpleName} not registered in LogicalOp @JsonSubTypes")
       }
-      Try(objectMapper.treeToValue(node, opClass))
-        .toEither
-        .left
+      Try(objectMapper.treeToValue(node, opClass)).toEither.left
         .map(e => s"deserialization failed: ${e.getMessage}")
     }
   }
 
   /** Maps each registered operator class to its `operatorType` discriminator,
-    * read from [[LogicalOp]]'s `@JsonSubTypes` (the same registry Jackson uses). */
+    * read from [[LogicalOp]]'s `@JsonSubTypes` (the same registry Jackson uses).
+    */
   private val typeNameByClass: Map[Class[_], String] = {
     Option(classOf[LogicalOp].getAnnotation(classOf[JsonSubTypes]))
       .map(_.value().toSeq.map(t => (t.value(): Class[_]) -> t.name()).toMap)
@@ -124,7 +125,8 @@ object ConfigGenerator {
 
   /** Decide whether/how to fill one field, applying required-vs-optional policy:
     * required (or autofill) fields that can't be filled fail the whole operator;
-    * optional scalars without a meaningful value are skipped (left at default). */
+    * optional scalars without a meaningful value are skipped (left at default).
+    */
   private def decide(f: Field, schemas: Map[Int, Schema]): Decision = {
     val jp = Option(f.getAnnotation(classOf[JsonProperty]))
     val jsonName = jp.map(_.value).filter(_.nonEmpty).getOrElse(f.getName)
@@ -134,8 +136,8 @@ object ConfigGenerator {
       isOption(f.getType) || isNestedObject(f.getType) || jp.map(_.defaultValue).exists(_.nonEmpty)
 
     valueFor(f, schemas) match {
-      case Right(v) if meaningful => Fill(jsonName, v)
-      case Right(_)               => Skip // optional plain scalar w/o default — leave operator default
+      case Right(v) if meaningful               => Fill(jsonName, v)
+      case Right(_)                             => Skip // optional plain scalar w/o default — leave operator default
       case Left(reason) if required || autofill => Fail(reason)
       case Left(_)                              => Skip
     }
@@ -144,7 +146,8 @@ object ConfigGenerator {
   // ── value resolution ─────────────────────────────────────────────────────
 
   /** Resolve a JSON value node for a field: autofill column refs first, then by
-    * declared type (list / option / scalar / nested object). */
+    * declared type (list / option / scalar / nested object).
+    */
   private def valueFor(f: Field, schemas: Map[Int, Schema]): Either[String, JsonNode] = {
     if (f.isAnnotationPresent(classOf[AutofillAttributeNameList]))
       columnNames(schemas, 0).map { names =>
@@ -167,12 +170,14 @@ object ConfigGenerator {
   }
 
   /** A node for a list element or Option inner type — no `defaultValue` to read
-    * (that lives on the field, not the element), so scalars get the canonical. */
+    * (that lives on the field, not the element), so scalars get the canonical.
+    */
   private def scalarOrNested(clazz: Class[_], schemas: Map[Int, Schema]): Either[String, JsonNode] =
     scalarNode(clazz, None, schemas)
 
   /** A node for a concrete (non-list, non-option) type, honoring an optional
-    * `defaultValue` string from the field's `@JsonProperty`. */
+    * `defaultValue` string from the field's `@JsonProperty`.
+    */
   private def scalarNode(
       t: Class[_],
       default: Option[String],
@@ -205,7 +210,8 @@ object ConfigGenerator {
   /** Config fields declared on `clazz` and its superclasses up to (not
     * including) [[LogicalOp]] — i.e. the operator's own knobs, not the
     * framework's bookkeeping. A field counts if it carries `@JsonProperty` or an
-    * autofill annotation. */
+    * autofill annotation.
+    */
   private def configFields(clazz: Class[_]): Seq[Field] = {
     val out = mutable.LinkedHashMap.empty[String, Field] // de-dup by name, keep most-derived
     var c: Class[_] = clazz
@@ -240,25 +246,29 @@ object ConfigGenerator {
   private def isOption(t: Class[_]): Boolean = classOf[Option[_]].isAssignableFrom(t)
 
   /** The element class of a `List[X]` / `Option[X]` field, from its generic
-    * signature. */
+    * signature.
+    */
   private def elementType(f: Field): Either[String, Class[_]] =
     f.getGenericType match {
       case p: ParameterizedType =>
         p.getActualTypeArguments.headOption match {
-          case Some(c: Class[_])         => Right(c)
+          case Some(c: Class[_])           => Right(c)
           case Some(pt: ParameterizedType) => Right(pt.getRawType.asInstanceOf[Class[_]])
-          case _                         => Left(s"cannot resolve element type of ${f.getName}")
+          case _                           => Left(s"cannot resolve element type of ${f.getName}")
         }
       case _ => Left(s"${f.getName} has no generic element type")
     }
 
   /** A type we should recurse into and build as a nested JSON object: not a
     * primitive/boxed/String/enum/collection, and it actually declares config
-    * fields or a creator. */
+    * fields or a creator.
+    */
   private def isNestedObject(t: Class[_]): Boolean = {
     val excluded = t.isPrimitive || t.isEnum || t == classOf[String] ||
       isList(t) || isOption(t) || t.getName.startsWith("java.lang.")
-    !excluded && (configFields(t).nonEmpty || t.getDeclaredConstructors.exists(_.getParameterCount > 0))
+    !excluded && (configFields(t).nonEmpty || t.getDeclaredConstructors.exists(
+      _.getParameterCount > 0
+    ))
   }
 
   private def columnNames(schemas: Map[Int, Schema], port: Int): Either[String, Seq[String]] =

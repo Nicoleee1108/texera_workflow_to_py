@@ -136,8 +136,26 @@ private object SetOpFixture {
   )
 
   private val names = Vector(
-    "a", "b", "c", "d", "e", "f", "g", "h", "i", "j",
-    "k", "l", "m", "n", "o", "p", "q", "r", "s", "t"
+    "a",
+    "b",
+    "c",
+    "d",
+    "e",
+    "f",
+    "g",
+    "h",
+    "i",
+    "j",
+    "k",
+    "l",
+    "m",
+    "n",
+    "o",
+    "p",
+    "q",
+    "r",
+    "s",
+    "t"
   )
 
   private def tup(id: Int, name: String): Tuple = {
@@ -161,7 +179,8 @@ private object SetOpFixture {
 /** Intersect: JVM keeps two `mutable.HashSet[Tuple]` and emits the
   *  intersection in bucket-iteration order. Row order isn't deterministic vs
   *  the pandas `concat + duplicated(keep="first")` path — order policy lives
-  *  in [[TransformVerificationRunner.orderInsensitiveOps]]. */
+  *  in [[TransformVerificationRunner.orderInsensitiveOps]].
+  */
 object IntersectTransformHandler extends TransformHandler {
   override val opDescClass: Class[_ <: LogicalOp] = classOf[IntersectOpDesc]
   override def fixture(testRoot: Path): (LogicalOp, Map[PortIdentity, Path]) =
@@ -170,7 +189,8 @@ object IntersectTransformHandler extends TransformHandler {
 
 /** Difference: `leftHashSet.diff(rightHashSet).iterator` — same hash-bucket
   *  order divergence as Intersect. Order policy lives in
-  *  [[TransformVerificationRunner.orderInsensitiveOps]]. */
+  *  [[TransformVerificationRunner.orderInsensitiveOps]].
+  */
 object DifferenceTransformHandler extends TransformHandler {
   override val opDescClass: Class[_ <: LogicalOp] = classOf[DifferenceOpDesc]
   override def fixture(testRoot: Path): (LogicalOp, Map[PortIdentity, Path]) =
@@ -180,7 +200,8 @@ object DifferenceTransformHandler extends TransformHandler {
 /** SymmetricDifference: union of the two diffs, hash-set backed on both
   *  sides. Most divergent of the set ops in practice — small fixtures can
   *  accidentally pass, larger ones fail. Order policy lives in
-  *  [[TransformVerificationRunner.orderInsensitiveOps]]. */
+  *  [[TransformVerificationRunner.orderInsensitiveOps]].
+  */
 object SymmetricDifferenceTransformHandler extends TransformHandler {
   override val opDescClass: Class[_ <: LogicalOp] = classOf[SymmetricDifferenceOpDesc]
   override def fixture(testRoot: Path): (LogicalOp, Map[PortIdentity, Path]) =
@@ -190,7 +211,8 @@ object SymmetricDifferenceTransformHandler extends TransformHandler {
 /** HashJoin INNER on `id`. Build (port 0) and probe (port 1) intentionally
   *  arrive in different id orders so any probe-major / left-major mismatch
   *  between the JVM emit and `pd.merge` shows up. Order policy lives in
-  *  [[TransformVerificationRunner.orderInsensitiveOps]]. */
+  *  [[TransformVerificationRunner.orderInsensitiveOps]].
+  */
 object HashJoinTransformHandler extends TransformHandler {
   override val opDescClass: Class[_ <: LogicalOp] = classOf[HashJoinOpDesc[_]]
 
@@ -251,7 +273,8 @@ object HashJoinTransformHandler extends TransformHandler {
   *  resultAttribute "1" then leaks into the generated pandas as a column ref
   *  (KeyError). Choosing resultAttribute == attribute makes the mutation a
   *  no-op. Emit-order policy (hash-partition vs first-occurrence) lives in
-  *  [[TransformVerificationRunner.orderInsensitiveOps]]. */
+  *  [[TransformVerificationRunner.orderInsensitiveOps]].
+  */
 object AggregateTransformHandler extends TransformHandler {
   override val opDescClass: Class[_ <: LogicalOp] = classOf[AggregateOpDesc]
   override def fixture(testRoot: Path): (LogicalOp, Map[PortIdentity, Path]) = {
@@ -270,7 +293,8 @@ object AggregateTransformHandler extends TransformHandler {
   *  column (`id`, INTEGER) into `attribute`, but DictionaryMatcherOpExec
   *  casts that field to String (ClassCastException). Point it at `name` with
   *  a dictionary matching a strict subset of rows. Map op — both paths keep
-  *  input row order, so strict positional comparison holds. */
+  *  input row order, so strict positional comparison holds.
+  */
 object DictionaryMatcherTransformHandler extends TransformHandler {
   override val opDescClass: Class[_ <: LogicalOp] = classOf[DictionaryMatcherOpDesc]
   override def fixture(testRoot: Path): (LogicalOp, Map[PortIdentity, Path]) = {
@@ -286,7 +310,8 @@ object DictionaryMatcherTransformHandler extends TransformHandler {
 /** Projection: `attributes` carries no @JsonProperty, so the auto-config tier
   *  leaves it empty and ProjectionOpExec rejects the empty list
   *  (Preconditions.checkArgument). Keep two columns, renaming one, to
-  *  exercise both select and alias. Map op — strict order holds. */
+  *  exercise both select and alias. Map op — strict order holds.
+  */
 object ProjectionTransformHandler extends TransformHandler {
   override val opDescClass: Class[_ <: LogicalOp] = classOf[ProjectionOpDesc]
   override def fixture(testRoot: Path): (LogicalOp, Map[PortIdentity, Path]) = {
