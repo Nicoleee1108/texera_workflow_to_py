@@ -44,6 +44,33 @@ ThisBuild / conflictManager := ConflictManager.latestRevision
 // Restrict parallel execution of tests to avoid conflicts
 Global / concurrentRestrictions += Tags.limit(Tags.Test, 1)
 
+// Test-filter switch driven by the WCS_TEST_FILTER env var so the
+// workflow-compiling-service and workflow-compiling-service-integration CI jobs
+// select disjoint subsets by ScalaTest tag. Mirrors amber's AMBER_TEST_FILTER.
+//   skip-integration : exclude @IntegrationTest-tagged specs (they fork Python,
+//                      which the lighter platform job does not provision)
+//   integration-only : include only @IntegrationTest-tagged specs
+// Unset (default) runs everything — the normal local behavior.
+Test / testOptions ++= (sys.env.get("WCS_TEST_FILTER") match {
+  case Some("skip-integration") =>
+    Seq(
+      Tests.Argument(
+        TestFrameworks.ScalaTest,
+        "-l",
+        "org.apache.texera.amber.translator.verify.tags.IntegrationTest"
+      )
+    )
+  case Some("integration-only") =>
+    Seq(
+      Tests.Argument(
+        TestFrameworks.ScalaTest,
+        "-n",
+        "org.apache.texera.amber.translator.verify.tags.IntegrationTest"
+      )
+    )
+  case _ => Nil
+})
+
 /////////////////////////////////////////////////////////////////////////////
 // Compiler Options
 /////////////////////////////////////////////////////////////////////////////

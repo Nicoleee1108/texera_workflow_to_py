@@ -23,9 +23,13 @@ import org.apache.texera.amber.operator.intersect.IntersectOpDesc
 import org.apache.texera.amber.operator.limit.LimitOpDesc
 import org.apache.texera.amber.operator.union.UnionOpDesc
 import org.apache.texera.amber.operator.visualization.barChart.BarChartOpDesc
+import org.apache.texera.amber.translator.verify.tags.IntegrationTest
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
+// Tagged @IntegrationTest: exercises TransformVerificationRunner.run, which runs
+// generated Python end-to-end, so it must run in the Python-provisioned job.
+@IntegrationTest
 class TransformVerificationRunnerSpec extends AnyFlatSpec with Matchers {
   import TransformVerificationRunner._
 

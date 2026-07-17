@@ -22,6 +22,7 @@ package org.apache.texera.amber.translator.verify
 import com.fasterxml.jackson.annotation.JsonSubTypes
 import org.apache.texera.amber.operator.{LogicalOp, StandaloneCodeGenerator}
 import org.apache.texera.amber.operator.source.SourceOperatorDescriptor
+import org.apache.texera.amber.translator.verify.tags.IntegrationTest
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
@@ -45,6 +46,9 @@ import org.scalatest.matchers.should.Matchers
   * Requires Python 3 with pandas on the [[Comparator]] / [[StandaloneRunner]]
   * resolution chain (`UDF_PYTHON_PATH` env var, then `python3.12`).
   */
+// Tagged @IntegrationTest: forks Python end-to-end, so CI routes it to the
+// Python-provisioned integration job (see build.sbt WCS_TEST_FILTER).
+@IntegrationTest
 class OperatorBehaviorSpec extends AnyFlatSpec with Matchers {
 
   // Build the test list at class construction. Each branch below registers
