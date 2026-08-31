@@ -198,6 +198,22 @@ class CanonicalFixtureSpec extends AnyFlatSpec with Matchers {
     cells should contain theSameElementsAs Seq((0, 0), (0, 1), (1, 0), (1, 1))
   }
 
+  // The text pair exists to run the scorer's string-label path on the same
+  // arrangement the numeric pair gives it. Spelling out a different prediction
+  // would make the two paths score differently for a reason that has nothing to
+  // do with the label being text.
+  it should "spell out the species pair without changing what it says" in {
+    val name = Map(0 -> "setosa", 1 -> "versicolor")
+    CanonicalFixture.allRows.foreach { t =>
+      t.getField[String]("species_name") shouldBe name(
+        t.getField[java.lang.Integer]("species").intValue
+      )
+      t.getField[String]("species_name_pred") shouldBe name(
+        t.getField[java.lang.Integer]("species_pred").intValue
+      )
+    }
+  }
+
   // The countVectorizer=true path fits the same label on short_text alone, and a
   // sentence appearing under both labels makes that set unlearnable.
   it should "keep every short_text sentence inside one species" in {

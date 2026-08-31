@@ -20,7 +20,7 @@
 package org.apache.texera.amber.translator.verify
 
 import com.fasterxml.jackson.databind.JsonNode
-import com.fasterxml.jackson.databind.node.{BooleanNode, IntNode}
+import com.fasterxml.jackson.databind.node.{BooleanNode, IntNode, TextNode}
 import org.apache.texera.amber.core.tuple.{AttributeType, Schema}
 import org.apache.texera.amber.core.workflow.PortIdentity
 import org.apache.texera.amber.util.JSONUtils.objectMapper
@@ -43,6 +43,7 @@ import org.apache.texera.amber.operator.machineLearning.sklearnAdvanced.KNNTrain
   SklearnAdvancedKNNRegressorTrainerOpDesc
 }
 import org.apache.texera.amber.operator.machineLearning.sklearnAdvanced.base.SklearnMLOperatorDescriptor
+import org.apache.texera.amber.operator.machineLearning.Scorer.MachineLearningScorerOpDesc
 import org.apache.texera.amber.operator.sklearn.training.SklearnTrainingOpDesc
 import org.apache.texera.amber.operator.sklearn.training.SklearnTrainingGaussianNaiveBayesOpDesc
 import org.apache.texera.amber.operator.regex.RegexOpDesc
@@ -201,12 +202,19 @@ object TransformVerificationRunner {
       .map(k => k.field -> k.value)
       .toMap
 
-  /** A second generation pass for a branch that needs a DIFFERENT table than the
-    * operator's default one. A swept variant cannot switch tables, since
-    * [[ConfigGenerator]] resolves every column picker against ONE schema, so the
-    * branch is generated separately against the table it needs with its switch
-    * pinned on. The auto-tier twin of [[TransformHandler.extraScenarios]]: it
-    * names only the table and the pins, and the generator writes the config.
+  /** A second generation pass for a branch the base config cannot reach. Usually
+    * that is a branch needing a DIFFERENT table: a swept variant cannot switch
+    * tables, since [[ConfigGenerator]] resolves every column picker against ONE
+    * schema, so the branch is generated separately against the table it needs
+    * with its switch pinned on.
+    *
+    * It also reaches a branch whose own knobs the base config leaves empty. The
+    * sweep offers the values a config already holds, so a list filled only on the
+    * far side of a switch has nothing to offer until the switch is pinned — and
+    * then the second pass may well take the same table as the first.
+    *
+    * The auto-tier twin of [[TransformHandler.extraScenarios]]: it names only the
+    * table and the pins, and the generator writes the config.
     */
   final case class AltScenario(
       label: String,
@@ -225,6 +233,8 @@ object TransformVerificationRunner {
     val CountVectorizerText = "countVectorizer_text"
     val TfidfText = "tfidf_text"
     val NonFeatureColumn = "nonFeatureColumn"
+    val TextLabels = "textLabels"
+    val RegressionBranch = "regressionBranch"
 
     /** One swept hyperparameter of an advanced trainer, which the sweep labels by the
       * pointer it flips. Built here rather than spelled out at each row, since a row
@@ -282,7 +292,37 @@ object TransformVerificationRunner {
       // No text scenarios, and nothing pinned: this operator declares neither
       // switch, and a pin is set on the config whether or not the field exists,
       // so pinning one here would hand it a property it cannot read back.
-      classOf[SklearnLinearRegressionOpDesc] -> Seq(nonFeatureColumn.copy(pinned = Map.empty))
+      classOf[SklearnLinearRegressionOpDesc] -> Seq(nonFeatureColumn.copy(pinned = Map.empty)),
+      // A scorer reads a text label as readily as a numeric one, and names the
+      // class after the label rather than after its position. Regression is
+      // pinned off rather than swept: a regression metric puts both columns
+      // through `float()`, so on this table the sweep would generate the one
+      // configuration the operator is right to refuse. The two columns are
+      // pinned because the operator's `@SampleColumn`s name the numeric pair,
+      // and an annotation naming a column the table does not hold ends the run
+      // rather than falling back — which is what catches a misspelling.
+      classOf[MachineLearningScorerOpDesc] -> Seq(
+        AltScenario(
+          label = RunKind.TextLabels,
+          fixture = CanonicalFixture.scorerTextLabels,
+          pinned = Map(
+            "isRegression" -> BooleanNode.FALSE,
+            "actualValueColumn" -> TextNode.valueOf("species_name"),
+            "predictValueColumn" -> TextNode.valueOf("species_name_pred")
+          )
+        ),
+        // The regression metrics are unreachable from the base config: the sweep
+        // reads the sites the config already holds, and on the classification
+        // branch the regression list is empty, so it offers none. Pinned on, the
+        // list is filled before the sweep looks, and the other three metrics
+        // become variants like any other enum. Same table as the default runs —
+        // this scenario is here for the branch, not for a different set of rows.
+        AltScenario(
+          label = RunKind.RegressionBranch,
+          fixture = CanonicalFixture,
+          pinned = Map("isRegression" -> BooleanNode.TRUE)
+        )
+      )
     )
   }
 

@@ -110,9 +110,16 @@ object CanonicalFixture extends SharedFixture {
     new Attribute(
       "species_pred",
       AttributeType.INTEGER
-    ) // a predictor's guess at `species`: the same 0/1 domain, wrong on a few rows.
+    ), // a predictor's guess at `species`: the same 0/1 domain, wrong on a few rows.
     // Scoring compares a PAIR of columns, and no single label column supplies one.
     // Last so the first-unused fallback reaches it only after every other column
+    new Attribute("species_name", AttributeType.STRING), // `species` spelled out
+    new Attribute(
+      "species_name_pred",
+      AttributeType.STRING
+    ) // `species_pred` spelled out. A scorer takes a string label as readily as a
+    // numeric one and names the class after it rather than after its position, so
+    // the pair exists a second time in text
   )
 
   // ── Data source ──
@@ -198,6 +205,17 @@ object CanonicalFixture extends SharedFixture {
     * The text column carries no signal about the label, so the fit is the one the
     * two petal columns give on their own.
     */
+  /** This table as a scorer reads it when the labels are text: the same pair as
+    * `species` / `species_pred`, spelled out, and nothing else. The scenario that
+    * takes it names the two columns itself, since the operator's `@SampleColumn`s
+    * name the numeric pair this projection does not carry.
+    */
+  val scorerTextLabels: SharedFixture = ProjectedFixture(
+    this,
+    Seq("species_name", "species_name_pred"),
+    keepFilled = Set.empty
+  )
+
   val sklearnNumericWithText: SharedFixture = ProjectedFixture(
     this,
     Seq("petal_length", "petal_width", "short_text", "species"),
