@@ -181,6 +181,23 @@ class CanonicalFixtureSpec extends AnyFlatSpec with Matchers {
     }
   }
 
+  // `species_pred` exists so the scorer has a real pair to compare. All four
+  // cells of the confusion matrix have to be occupied: a perfect prediction
+  // scores every metric at 1.0, and one that never calls a class leaves that
+  // class's precision undefined — either way the metrics stop telling the two
+  // code paths apart.
+  it should "hold a species_pred that is right on most rows and wrong on some" in {
+    val cells = CanonicalFixture.allRows
+      .map(t =>
+        (
+          t.getField[java.lang.Integer]("species").intValue,
+          t.getField[java.lang.Integer]("species_pred").intValue
+        )
+      )
+      .distinct
+    cells should contain theSameElementsAs Seq((0, 0), (0, 1), (1, 0), (1, 1))
+  }
+
   // The countVectorizer=true path fits the same label on short_text alone, and a
   // sentence appearing under both labels makes that set unlearnable.
   it should "keep every short_text sentence inside one species" in {

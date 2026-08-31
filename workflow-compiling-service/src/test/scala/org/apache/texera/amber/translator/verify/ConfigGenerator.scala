@@ -795,6 +795,15 @@ object ConfigGenerator {
       .filter(_.nonEmpty)
       .getOrElse(f.getName)
 
+  /** Whether the config has to carry a value for this field. Two sources say so and
+    * both count: the annotation, and a schema branch the siblings have selected. A
+    * field required only under a branch carries no annotation, so reading the
+    * annotation alone leaves it unfilled in exactly the configuration that needs it.
+    */
+  private def isRequired(f: Field, scope: SchemaScope, siblings: JsonNode): Boolean =
+    Option(f.getAnnotation(classOf[JsonProperty])).exists(_.required) ||
+      requiredUnder(scope, siblings).contains(jsonNameOf(f))
+
   /** The nested-row type a field holds — its `List[Row]` / `Option[Row]` element
     * type, or its own type when the field IS the row. `None` for a scalar field.
     */
@@ -1249,10 +1258,7 @@ object ConfigGenerator {
   ): Decision = {
     val jp = Option(f.getAnnotation(classOf[JsonProperty]))
     val jsonName = jp.map(_.value).filter(_.nonEmpty).getOrElse(f.getName)
-    // A field the schema requires only under a branch carries no annotation saying
-    // so, and reading the annotation alone leaves it unfilled in exactly the
-    // configuration that needs it.
-    val required = jp.exists(_.required) || requiredUnder(scope, siblings).contains(jsonName)
+    val required = isRequired(f, scope, siblings)
     val autofill = hasAutofill(f)
     // An optional knob is judged by what it WRAPS: `Option[Double]` is a number the
     // user may leave blank, not a thing the base config has to carry.
@@ -1322,7 +1328,11 @@ object ConfigGenerator {
           // takes for "no rows at all" is only reached this way. A REQUIRED list gets
           // one row — its operator asserts the list is non-empty, so zero is not a
           // config it can run. Either way the extra row comes from [[extraRowFills]].
-          if (!Option(f.getAnnotation(classOf[JsonProperty])).exists(_.required))
+          //
+          // Required counts the schema's conditional form too: a list the operator
+          // needs only on one branch is empty-by-annotation, and reading the
+          // annotation alone hands that branch the empty list it cannot run.
+          if (!isRequired(f, scope, siblings))
             Right(objectMapper.createArrayNode())
           else
             elementType(f)
@@ -1922,12 +1932,14 @@ object ConfigGenerator {
       rowCount: Int = DefaultRowCount
   )
 
-  /** Whether a config holds nothing at this key: absent, null, or the empty string a
-    * field initialised to `""` starts as. All three mean the same thing to an operator
-    * reading it, so a conditional `required` is unmet by any of them.
+  /** Whether a config holds nothing at this key: absent, null, the empty string a
+    * field initialised to `""` starts as, or the empty list a `List()` field starts
+    * as. All four mean the same thing to an operator reading it, so a conditional
+    * `required` is unmet by any of them.
     */
   private def isBlank(node: JsonNode): Boolean =
-    node.isMissingNode || node.isNull || (node.isTextual && node.asText.isEmpty)
+    node.isMissingNode || node.isNull || (node.isTextual && node.asText.isEmpty) ||
+      (node.isArray && node.isEmpty)
 
   /** The fields an object's schema requires only under some condition, named by every
     * `required` its `allOf` states in either branch. Empty for an object whose

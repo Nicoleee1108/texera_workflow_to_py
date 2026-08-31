@@ -101,7 +101,13 @@ class TransformVerificationRunnerSpec extends AnyFlatSpec with Matchers {
 
   it should "route genuine one-off curated ops to the curated tier" in {
     disposition(classOf[HashJoinOpDesc[_]]) shouldBe Runnable("curated")
-    disposition(classOf[MachineLearningScorerOpDesc]) shouldBe Runnable("curated")
+  }
+
+  it should "route the scorer to the auto tier now the table holds a label pair" in {
+    // What kept it curated was the canonical table, not the operator: scoring reads
+    // one label through two columns, and until `species_pred` joined `species` there
+    // was no such pair for @SampleColumn to name.
+    disposition(classOf[MachineLearningScorerOpDesc]) shouldBe Runnable("auto")
   }
 
   it should "route a sklearn estimator to the auto tier on the numeric projection" in {

@@ -105,8 +105,14 @@ object CanonicalFixture extends SharedFixture {
     new Attribute(
       "mixed_case",
       AttributeType.STRING
-    ) // a third lower-case, a third upper, a third letterless: a case flag has to
+    ), // a third lower-case, a third upper, a third letterless: a case flag has to
     // change WHICH rows match, and on any other column it changes nothing
+    new Attribute(
+      "species_pred",
+      AttributeType.INTEGER
+    ) // a predictor's guess at `species`: the same 0/1 domain, wrong on a few rows.
+    // Scoring compares a PAIR of columns, and no single label column supplies one.
+    // Last so the first-unused fallback reaches it only after every other column
   )
 
   // ── Data source ──

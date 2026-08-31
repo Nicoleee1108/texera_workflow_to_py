@@ -30,7 +30,8 @@
     "petal_width": 1.3,
     "species": 1,
     "csv_list": "a7",
-    "mixed_case": "abacus"
+    "mixed_case": "abacus",
+    "species_pred": 1
   },
   {
     "id": 3,
@@ -63,7 +64,8 @@
     "petal_width": 1.85,
     "species": 1,
     "csv_list": "a3,b3",
-    "mixed_case": "ABBEY"
+    "mixed_case": "ABBEY",
+    "species_pred": 1
   },
   {
     "id": 11,
@@ -96,7 +98,8 @@
     "petal_width": 0.75,
     "species": 0,
     "csv_list": "a11,b11,c11",
-    "mixed_case": "101"
+    "mixed_case": "101",
+    "species_pred": 0
   },
   {
     "id": 1,
@@ -129,7 +132,8 @@
     "petal_width": 0.75,
     "species": 0,
     "csv_list": "a1,b1,c1,d1",
-    "mixed_case": "abdomen"
+    "mixed_case": "abdomen",
+    "species_pred": 1
   },
   {
     "id": 14,
@@ -162,7 +166,8 @@
     "petal_width": 2.4000000000000004,
     "species": 1,
     "csv_list": "a14",
-    "mixed_case": "ABILITY"
+    "mixed_case": "ABILITY",
+    "species_pred": 1
   },
   {
     "id": 5,
@@ -195,7 +200,8 @@
     "petal_width": 0.2,
     "species": 0,
     "csv_list": "a5,b5",
-    "mixed_case": "202"
+    "mixed_case": "202",
+    "species_pred": 0
   },
   {
     "id": 9,
@@ -228,7 +234,8 @@
     "petal_width": 2.4000000000000004,
     "species": 1,
     "csv_list": "a9,b9,c9",
-    "mixed_case": "abstract"
+    "mixed_case": "abstract",
+    "species_pred": 0
   },
   {
     "id": 2,
@@ -261,7 +268,8 @@
     "petal_width": 1.3,
     "species": 1,
     "csv_list": "a2,b2,c2,d2",
-    "mixed_case": "ABACUS"
+    "mixed_case": "ABACUS",
+    "species_pred": 1
   },
   {
     "id": 13,
@@ -294,7 +302,8 @@
     "petal_width": 1.85,
     "species": 1,
     "csv_list": "a13",
-    "mixed_case": "303"
+    "mixed_case": "303",
+    "species_pred": 1
   },
   {
     "id": 6,
@@ -327,7 +336,8 @@
     "petal_width": 0.75,
     "species": 0,
     "csv_list": "a6,b6",
-    "mixed_case": "abbey"
+    "mixed_case": "abbey",
+    "species_pred": 0
   },
   {
     "id": 10,
@@ -360,7 +370,8 @@
     "petal_width": 0.2,
     "species": 0,
     "csv_list": "a10,b10,c10",
-    "mixed_case": "ABDOMEN"
+    "mixed_case": "ABDOMEN",
+    "species_pred": 1
   },
   {
     "id": 4,
@@ -393,7 +404,8 @@
     "petal_width": 2.4000000000000004,
     "species": 1,
     "csv_list": "a4,b4,c4,d4",
-    "mixed_case": "404"
+    "mixed_case": "404",
+    "species_pred": 1
   },
   {
     "id": 15,
@@ -426,7 +438,8 @@
     "petal_width": 0.2,
     "species": 0,
     "csv_list": "a15",
-    "mixed_case": "ability"
+    "mixed_case": "ability",
+    "species_pred": 0
   },
   {
     "id": 8,
@@ -459,7 +472,8 @@
     "petal_width": 1.85,
     "species": 1,
     "csv_list": "a8,b8",
-    "mixed_case": "ABSTRACT"
+    "mixed_case": "ABSTRACT",
+    "species_pred": 1
   },
   {
     "id": 12,
@@ -492,6 +506,7 @@
     "petal_width": 1.3,
     "species": 1,
     "csv_list": "a12,b12,c12",
-    "mixed_case": "505"
+    "mixed_case": "505",
+    "species_pred": 1
   }
 ]

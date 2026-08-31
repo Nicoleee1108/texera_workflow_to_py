@@ -44,9 +44,6 @@ import org.apache.texera.amber.operator.visualization.dumbbellPlot.{
   DumbbellDotConfig,
   DumbbellPlotOpDesc
 }
-import org.apache.texera.amber.operator.machineLearning.Scorer.classificationMetricsFnc
-import org.apache.texera.amber.operator.machineLearning.Scorer.regressionMetricsFnc
-import org.apache.texera.amber.operator.machineLearning.Scorer.MachineLearningScorerOpDesc
 import org.apache.texera.amber.operator.sklearn.training.SklearnTrainingOpDesc
 import org.apache.texera.amber.operator.sklearn.SklearnClassifierOpDesc
 import org.apache.texera.amber.operator.sklearn.SklearnLinearRegressionOpDesc
@@ -153,7 +150,6 @@ object CuratedHandlers {
     DumbbellPlotVisualizationHandler,
     ImageVisualizerVisualizationHandler,
     IfTransformHandler,
-    MachineLearningScorerTransformHandler,
     HuggingFaceSpamSMSDetectionTransformHandler,
     RegexTransformHandler
   )
@@ -689,47 +685,5 @@ object IfTransformHandler extends TransformHandler {
     val desc = new IfOpDesc()
     desc.conditionName = "cond"
     (desc, Map(PortIdentity(0) -> condition, PortIdentity(1) -> data))
-  }
-}
-
-/** Machine learning scorer fixture with a tiny labeled prediction table. */
-object MachineLearningScorerTransformHandler extends TransformHandler {
-  override val opDescClass: Class[_ <: LogicalOp] = classOf[MachineLearningScorerOpDesc]
-
-  override def fixture(testRoot: Path): (LogicalOp, Map[PortIdentity, Path]) = {
-    val schema = new Schema(
-      new Attribute("y", AttributeType.INTEGER),
-      new Attribute("pred", AttributeType.INTEGER)
-    )
-
-    def tup(y: Int, pred: Int): Tuple = {
-      val builder = Tuple.builder(schema)
-      builder.add(schema.getAttribute("y"), Int.box(y))
-      builder.add(schema.getAttribute("pred"), Int.box(pred))
-      builder.build()
-    }
-
-    val rows = Seq(
-      tup(0, 0),
-      tup(0, 0),
-      tup(1, 1),
-      tup(1, 0),
-      tup(1, 1)
-    )
-    val inputPath = testRoot.resolve("input_port_0.jsonl")
-    TupleIO.writeTuples(inputPath, rows.iterator, schema)
-
-    val desc = new MachineLearningScorerOpDesc()
-    desc.isRegression = false
-    desc.actualValueColumn = "y"
-    desc.predictValueColumn = "pred"
-    desc.classificationMetrics = List(classificationMetricsFnc.accuracy)
-    // Populate regressionMetrics too so the enum sweep's isRegression=true variant
-    // has a real metric. Left empty, getSelectedMetrics() renders [''] (mkString
-    // on an empty list), and regression_metrics does metrics_func[''] → KeyError.
-    // The metrics func runs on the same y/pred integers on both paths → parity.
-    desc.regressionMetrics = List(regressionMetricsFnc.mse)
-
-    (desc, Map(PortIdentity(0) -> inputPath))
   }
 }
