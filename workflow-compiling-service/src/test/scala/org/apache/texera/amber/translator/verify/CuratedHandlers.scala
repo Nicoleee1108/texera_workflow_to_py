@@ -44,7 +44,6 @@ import org.apache.texera.amber.operator.visualization.dumbbellPlot.{
   DumbbellDotConfig,
   DumbbellPlotOpDesc
 }
-import org.apache.texera.amber.operator.visualization.filledAreaPlot.FilledAreaPlotOpDesc
 import org.apache.texera.amber.operator.machineLearning.Scorer.classificationMetricsFnc
 import org.apache.texera.amber.operator.machineLearning.Scorer.regressionMetricsFnc
 import org.apache.texera.amber.operator.machineLearning.Scorer.MachineLearningScorerOpDesc
@@ -153,7 +152,6 @@ object CuratedHandlers {
     KeywordSearchTransformHandler,
     DumbbellPlotVisualizationHandler,
     ImageVisualizerVisualizationHandler,
-    FilledAreaPlotVisualizationHandler,
     IfTransformHandler,
     MachineLearningScorerTransformHandler,
     HuggingFaceSpamSMSDetectionTransformHandler,
@@ -628,29 +626,6 @@ object ImageVisualizerVisualizationHandler extends TransformHandler {
     desc.binaryContent = "image_bytes"
 
     (desc, Map(PortIdentity(0) -> inputPath))
-  }
-}
-
-/** FilledAreaPlot: curated CONFIG over the shared canonical fixture. Two things
-  * the auto tier cannot supply. `lineGroup` is an optional autofill field, so
-  * auto leaves it empty — but the Boolean sweep still flips `facetColumn` to
-  * true, and `facet_col` needs that column name, so the generated code is
-  * invalid. And the operator rejects line groups whose x sets are disjoint
-  * (tolerance is 0), which pins which (group, x) pair is usable: grouping by
-  * `node_src` (n1/n2/n3 in port 0), every group shares a `comp_a` value with
-  * the first, so both sweep variants render.
-  */
-object FilledAreaPlotVisualizationHandler extends TransformHandler {
-  override val opDescClass: Class[_ <: LogicalOp] = classOf[FilledAreaPlotOpDesc]
-
-  override def fixture(testRoot: Path): (LogicalOp, Map[PortIdentity, Path]) = {
-    val desc = new FilledAreaPlotOpDesc()
-    desc.x = "comp_a"
-    desc.y = "score"
-    desc.lineGroup = "node_src"
-    desc.facetColumn = false
-
-    (desc, CanonicalFixture.writeInputs(testRoot, 1))
   }
 }
 

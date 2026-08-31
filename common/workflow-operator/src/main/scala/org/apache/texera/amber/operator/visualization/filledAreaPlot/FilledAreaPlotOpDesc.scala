@@ -20,7 +20,7 @@
 package org.apache.texera.amber.operator.visualization.filledAreaPlot
 
 import com.fasterxml.jackson.annotation.{JsonProperty, JsonPropertyDescription}
-import com.kjetland.jackson.jsonSchema.annotations.JsonSchemaTitle
+import com.kjetland.jackson.jsonSchema.annotations.{JsonSchemaInject, JsonSchemaTitle}
 import org.apache.texera.amber.core.tuple.{AttributeType, Schema}
 import org.apache.texera.amber.pybuilder.PythonTemplateBuilder.{
   PythonTemplateBuilderStringContext,
@@ -29,12 +29,33 @@ import org.apache.texera.amber.pybuilder.PythonTemplateBuilder.{
 import org.apache.texera.amber.pybuilder.PyStringTypes.EncodableString
 import org.apache.texera.amber.core.workflow.PortIdentity
 import org.apache.texera.amber.operator.{PythonOperatorDescriptor, StandaloneCodeGenerator}
-import org.apache.texera.amber.operator.metadata.annotations.AutofillAttributeName
+import org.apache.texera.amber.operator.metadata.annotations.{AutofillAttributeName, SampleColumn}
 import org.apache.texera.amber.operator.metadata.{OperatorGroupConstants, OperatorInfo}
 import org.apache.texera.amber.pybuilder.PythonTemplateBuilder
 
 import javax.validation.constraints.NotNull
 
+// `lineGroup` names the column the plot is split on, so it is required exactly when
+// that switch is on: with the switch off nothing reads it, and with the switch on
+// code generation asserts it and the run ends. Conditional rather than a plain
+// required, so a freshly dropped operator is not flagged for a field it has no use
+// for.
+@JsonSchemaInject(json = """
+{
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "facetColumn": { "const": true }
+        }
+      },
+      "then": {
+        "required": ["lineGroup"]
+      }
+    }
+  ]
+}
+""")
 class FilledAreaPlotOpDesc extends PythonOperatorDescriptor with StandaloneCodeGenerator {
 
   @JsonProperty(required = true)
@@ -42,6 +63,13 @@ class FilledAreaPlotOpDesc extends PythonOperatorDescriptor with StandaloneCodeG
   @JsonPropertyDescription("The attribute for your x-axis")
   @AutofillAttributeName
   @NotNull(message = "X-axis Attribute cannot be empty")
+  // Test-only steering, for x and the two fields below. The operator refuses line
+  // groups whose x sets are disjoint, so which three columns are named together
+  // decides whether a chart is drawn at all: every `node_src` group shares a
+  // `comp_a` value with the first. Left to the first column of each type, the
+  // verification plots a string against an index and renders an error page, which
+  // compares equal on both paths and asks nothing.
+  @SampleColumn("comp_a")
   var x: EncodableString = ""
 
   @JsonProperty(required = true)
@@ -49,12 +77,14 @@ class FilledAreaPlotOpDesc extends PythonOperatorDescriptor with StandaloneCodeG
   @JsonPropertyDescription("The attribute for your y-axis")
   @AutofillAttributeName
   @NotNull(message = "Y-axis Attribute cannot be empty")
+  @SampleColumn("score")
   var y: EncodableString = ""
 
   @JsonProperty(required = false)
   @JsonSchemaTitle("Line Group")
   @JsonPropertyDescription("The attribute for group of each line")
   @AutofillAttributeName
+  @SampleColumn("node_src")
   var lineGroup: EncodableString = ""
 
   @JsonProperty(required = false)
