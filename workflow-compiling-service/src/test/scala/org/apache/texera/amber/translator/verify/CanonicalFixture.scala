@@ -21,9 +21,7 @@ package org.apache.texera.amber.translator.verify
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.apache.texera.amber.core.tuple.{Attribute, AttributeType, Schema, Tuple}
-import org.apache.texera.amber.core.workflow.PortIdentity
 
-import java.nio.file.Path
 import java.sql.Timestamp
 import scala.jdk.CollectionConverters._
 
@@ -172,16 +170,6 @@ object CanonicalFixture extends SharedFixture {
     * emptying it would change which rows pair up rather than what a null does.
     */
   override val keepFilled: Set[String] = Set("id")
-
-  /** As [[writeInputs]], but with one cell per column emptied. The table above
-    * has every cell filled, so nothing else says what an operator does with a
-    * value that isn't there — and an empty cell is ordinary input, a blank in a
-    * CSV that `AttributeTypeUtils.parseField` passes through by design. A JVM
-    * null and a pandas NaN are different things, so the two paths do not agree
-    * on one for free.
-    */
-  def writeInputsWithGaps(testRoot: Path, inputPortCount: Int): Map[PortIdentity, Path] =
-    write(testRoot, inputPortCount, withGaps = true)
 
   /** This table as the sklearn families read it: the two petal columns and the
     * `species` label, and nothing else, because `X = table.drop(target, axis=1)`

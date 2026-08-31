@@ -1750,9 +1750,6 @@ object ConfigGenerator {
       case None        => Left(s"no input columns at port $port")
     }
 
-  private def firstColumn(schemas: Map[Int, Schema], port: Int): Either[String, String] =
-    columnNames(schemas, port).map(_.head)
-
   /** First column at `port` not yet claimed by a sibling field of the same
     * operator (so two un-annotated / same-type fields don't collapse onto the
     * same column); the first column if every column is already taken. Marks the

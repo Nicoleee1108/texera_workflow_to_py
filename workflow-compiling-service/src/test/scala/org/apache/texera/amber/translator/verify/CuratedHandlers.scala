@@ -198,15 +198,6 @@ object CuratedHandlers {
     path
   }
 
-  /** Two-input binary-classification fixture (train on port 0, test on port 1)
-    * from [[CanonicalFixture.sklearnNumeric]]. Both ports get the same rows.
-    */
-  def writeClassification2Input(testRoot: Path): (Path, Path) = {
-    val inputs =
-      CanonicalFixture.sklearnNumeric.write(testRoot, inputPortCount = 2, withGaps = false)
-    (inputs(PortIdentity(0)), inputs(PortIdentity(1)))
-  }
-
 }
 
 /**
