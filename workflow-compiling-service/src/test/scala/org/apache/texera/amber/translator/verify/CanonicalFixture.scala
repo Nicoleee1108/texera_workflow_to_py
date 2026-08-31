@@ -205,6 +205,19 @@ object CanonicalFixture extends SharedFixture {
     * The text column carries no signal about the label, so the fit is the one the
     * two petal columns give on their own.
     */
+  /** This table minus `score`. An operator whose output column is named `score`
+    * by default cannot run here otherwise: it would create a column the input
+    * already holds, and the schema refuses the duplicate before the operator
+    * runs. Dropping the one column puts the DEFAULT config under test, which is
+    * the config a user gets, rather than a hand-written name chosen to dodge the
+    * clash.
+    */
+  val withoutScore: SharedFixture = ProjectedFixture(
+    this,
+    schema.getAttributeNames.filterNot(_ == "score"),
+    keepFilled = keepFilled
+  )
+
   /** This table as a scorer reads it when the labels are text: the same pair as
     * `species` / `species_pred`, spelled out, and nothing else. The scenario that
     * takes it names the two columns itself, since the operator's `@SampleColumn`s

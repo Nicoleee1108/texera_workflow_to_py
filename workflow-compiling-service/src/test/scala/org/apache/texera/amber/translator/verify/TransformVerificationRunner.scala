@@ -44,6 +44,7 @@ import org.apache.texera.amber.operator.machineLearning.sklearnAdvanced.KNNTrain
 }
 import org.apache.texera.amber.operator.machineLearning.sklearnAdvanced.base.SklearnMLOperatorDescriptor
 import org.apache.texera.amber.operator.machineLearning.Scorer.MachineLearningScorerOpDesc
+import org.apache.texera.amber.operator.huggingFace.HuggingFaceSpamSMSDetectionOpDesc
 import org.apache.texera.amber.operator.sklearn.training.SklearnTrainingOpDesc
 import org.apache.texera.amber.operator.sklearn.training.SklearnTrainingGaussianNaiveBayesOpDesc
 import org.apache.texera.amber.operator.regex.RegexOpDesc
@@ -578,6 +579,7 @@ object TransformVerificationRunner {
     */
   private[verify] def fixtureFor(opClass: Class[_ <: LogicalOp]): SharedFixture =
     if (CuratedHandlers.sklearnNumericClasses.contains(opClass)) CanonicalFixture.sklearnNumeric
+    else if (opClass == classOf[HuggingFaceSpamSMSDetectionOpDesc]) CanonicalFixture.withoutScore
     else CanonicalFixture
 
   /** Static classification — cheap (reflection only, no subprocesses), called

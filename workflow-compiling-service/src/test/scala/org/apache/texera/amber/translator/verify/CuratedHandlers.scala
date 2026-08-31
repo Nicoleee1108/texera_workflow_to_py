@@ -49,7 +49,6 @@ import org.apache.texera.amber.operator.sklearn.SklearnClassifierOpDesc
 import org.apache.texera.amber.operator.sklearn.SklearnLinearRegressionOpDesc
 import org.apache.texera.amber.operator.machineLearning.sklearnAdvanced.base.SklearnMLOperatorDescriptor
 import org.apache.texera.amber.operator.ifStatement.IfOpDesc
-import org.apache.texera.amber.operator.huggingFace.HuggingFaceSpamSMSDetectionOpDesc
 import java.nio.file.{Files, Path}
 import java.util
 
@@ -150,7 +149,6 @@ object CuratedHandlers {
     DumbbellPlotVisualizationHandler,
     ImageVisualizerVisualizationHandler,
     IfTransformHandler,
-    HuggingFaceSpamSMSDetectionTransformHandler,
     RegexTransformHandler
   )
 
@@ -419,27 +417,6 @@ object HashJoinTransformHandler extends TransformHandler {
     desc.joinType = JoinType.INNER
 
     (desc, Map(PortIdentity(0) -> buildPath, PortIdentity(1) -> probePath))
-  }
-}
-
-/** HuggingFace Spam SMS Detection: the auto-config tier fills the free-form
-  *  `resultAttributeProbability` with the op's production default `"score"`,
-  *  which collides with the shared fixture's existing `score` column, so
-  *  `getOutputSchemas` throws when it `.add("score", …)` on a schema that
-  *  already has it ("Output schema … not propagated"). Curate a non-colliding
-  *  output name here — purely a test-side override; the production default stays
-  *  `"score"`. `attribute` is pointed at the sentence column (the op's own
-  *  @SampleColumn target) so the classifier gets real text. Map op running the
-  *  same HuggingFace pipeline on both paths → compared as a DataFrame.
-  */
-object HuggingFaceSpamSMSDetectionTransformHandler extends TransformHandler {
-  override val opDescClass: Class[_ <: LogicalOp] = classOf[HuggingFaceSpamSMSDetectionOpDesc]
-  override def fixture(testRoot: Path): (LogicalOp, Map[PortIdentity, Path]) = {
-    val desc = new HuggingFaceSpamSMSDetectionOpDesc()
-    desc.attribute = "short_text"
-    desc.resultAttributeSpam = "is_spam"
-    desc.resultAttributeProbability = "spam_score" // avoid colliding with fixture's `score`
-    (desc, CanonicalFixture.writeInputs(testRoot, 1))
   }
 }
 
