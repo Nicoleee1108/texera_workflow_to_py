@@ -62,8 +62,14 @@ export type ValueRuleSet = Readonly<{
     then: {
       // the accepted set, where the value is chosen from one
       enum?: ReadonlyArray<string>;
-      // otherwise how the value is read, in JSON Schema's names
+      // otherwise how the value is read, in JSON Schema's names, with the bound the estimator
+      // puts on it where it has one
       type?: "number" | "integer";
+      minimum?: number;
+      exclusiveMinimum?: number;
+      // or, where the value is a choice between a set and a number and no type names it,
+      // the shape it takes
+      pattern?: string;
       // a value that is accepted, for a reader that has to supply one; the form does not
       // render it, the same as everywhere else `examples` is declared
       examples?: ReadonlyArray<string>;

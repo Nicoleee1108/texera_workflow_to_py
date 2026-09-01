@@ -22,11 +22,13 @@ package org.apache.texera.amber.operator.machineLearning.sklearnAdvanced.KNNTrai
 import org.apache.texera.amber.operator.machineLearning.sklearnAdvanced.base.ParamClass;
 
 public enum SklearnAdvancedKNNParameters implements ParamClass {
-    n_neighbors("n_neighbors", "int", "5"),
-    p("p", "int", "2"),
+    // Bounds are scikit-learn's own: a neighbour count and a leaf size start at one, and the
+    // Minkowski power is open at zero.
+    n_neighbors("n_neighbors", "int", "5") { @Override public String getMinimum() { return ">=1"; } },
+    p("p", "int", "2") { @Override public String getMinimum() { return ">0"; } },
     weights("weights", "str", "", "uniform", "distance"),
     algorithm("algorithm", "str", "", "auto", "ball_tree", "kd_tree", "brute"),
-    leaf_size("leaf_size", "int", "30"),
+    leaf_size("leaf_size", "int", "30") { @Override public String getMinimum() { return ">=1"; } },
     // A metric is named, not measured: "minkowski" and the rest are words, so the
     // int() this used to declare rejected every value scikit-learn would take. The
     // set is the one every `algorithm` above accepts -- the tree algorithms take
