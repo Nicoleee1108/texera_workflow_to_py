@@ -97,7 +97,10 @@ class UnnestStringOpDesc extends FlatMapOpDesc with StandaloneCodeGenerator {
     val delim = pyStringLiteral(Option(delimiter).getOrElse(""))
     val resultLit = pyStringLiteral(resultAttribute)
     val attributeLit = pyStringLiteral(attribute)
-    s"""out1df = in1df.copy()
+    s"""# Nothing in the column unnests to nothing, the way the operator answers a null
+       |# field with no rows at all. Dropped before the split rather than after:
+       |# astype(str) would turn the empty cell into the text "None" and unnest that.
+       |out1df = in1df[in1df[$attributeLit].notna()].copy()
        |out1df[$resultLit] = out1df[$attributeLit].astype(str).str.split($delim, regex=True)
        |out1df = out1df.explode($resultLit, ignore_index=True)
        |out1df = out1df[(out1df[$resultLit].notna()) & (out1df[$resultLit] != "")].reset_index(drop=True)""".stripMargin

@@ -369,8 +369,8 @@ object TransformVerificationRunner {
     // The platform raises on an empty cell, so the two paths cannot be compared
     // on one until it stops.
     val emptyCellRaises: Seq[(Class[_], String)] = Seq(
-      classOf[SubstringSearchOpDesc] -> "apache/texera#7548",
-      classOf[UnnestStringOpDesc] -> "apache/texera#7548",
+      // Regex alone: apache/texera#7566 answers the empty cell in Substring Search
+      // and Unnest String, and this one was not part of it.
       classOf[RegexOpDesc] -> "apache/texera#7548"
     )
 
