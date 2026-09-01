@@ -115,36 +115,49 @@ class ContourPlotOpDesc extends PythonOperatorDescriptor with StandaloneCodeGene
        |import plotly.io as pio
        |
        |class ProcessTableOperator(UDFTableOperator):
-       |    def render_error(self, error_msg):
+       |    def render_error(self, error_msg) -> str:
        |        return '''<h1>Contour plot is not available.</h1>
        |                  <p>Reason is: {} </p>
        |               '''.format(error_msg)
        |
        |    @overrides
        |    def process_table(self, table: Table, port: int) -> Iterator[Optional[TableLike]]:
-       |        try:
-       |            x = table[$x].values
-       |            y = table[$y].values
-       |            z = table[$z].values
-       |            grid_size = $gridSizeLiteral
-       |            connGaps = True if '$connectGaps' == 'true' else False
+       |        # A row missing any of the three has no point to contribute, and
+       |        # griddata refuses a NaN coordinate outright.
+       |        table = table.dropna(subset=[$x, $y, $z])
+       |        if table.empty:
+       |            yield {'html-content': self.render_error("Table should not have any empty/null values or fields.")}
+       |            return
        |
-       |            grid_x, grid_y = np.meshgrid(np.linspace(min(x), max(x), grid_size), np.linspace(min(y), max(y), grid_size))
-       |            grid_z = griddata((x, y), z, (grid_x, grid_y), method='cubic')
+       |        x = table[$x].values
+       |        y = table[$y].values
+       |        z = table[$z].values
        |
-       |            fig = go.Figure(data=go.Contour(
-       |                x=np.linspace(min(x), max(x), grid_size),
-       |                y=np.linspace(min(y), max(y), grid_size),
-       |                z=grid_z,
-       |                connectgaps=connGaps,
-       |                contours_coloring ='${coloringMethod.getColoringMethod}',
-       |                colorbar_title=$z
-       |            ))
-       |            fig.update_layout(title='Contour Plot')
-       |            html = pio.to_html(fig, include_plotlyjs='cdn', full_html=False)
-       |            yield {'html-content': html}
-       |        except Exception as e:
-       |            yield {'html-content': self.render_error(f"General error: {str(e)}")}
+       |        # Cubic interpolation triangulates the points before it interpolates,
+       |        # which needs them to span a plane. Points that all fall on one line
+       |        # leave Qhull without a simplex to start from and it raises instead.
+       |        points = np.unique(np.column_stack((x, y)), axis=0)
+       |        if np.linalg.matrix_rank(points - points.mean(axis=0)) < 2:
+       |            yield {'html-content': self.render_error("The x and y values all fall on one line, so there is no area to contour.")}
+       |            return
+       |
+       |        grid_size = $gridSizeLiteral
+       |        connGaps = True if '$connectGaps' == 'true' else False
+       |
+       |        grid_x, grid_y = np.meshgrid(np.linspace(min(x), max(x), grid_size), np.linspace(min(y), max(y), grid_size))
+       |        grid_z = griddata((x, y), z, (grid_x, grid_y), method='cubic')
+       |
+       |        fig = go.Figure(data=go.Contour(
+       |            x=np.linspace(min(x), max(x), grid_size),
+       |            y=np.linspace(min(y), max(y), grid_size),
+       |            z=grid_z,
+       |            connectgaps=connGaps,
+       |            contours_coloring ='${coloringMethod.getColoringMethod}',
+       |            colorbar_title=$z
+       |        ))
+       |        fig.update_layout(title='Contour Plot')
+       |        html = pio.to_html(fig, include_plotlyjs='cdn', full_html=False)
+       |        yield {'html-content': html}
        |""".encode
   }
 
@@ -161,10 +174,32 @@ class ContourPlotOpDesc extends PythonOperatorDescriptor with StandaloneCodeGene
        |                  <p>Reason is: {} </p>
        |               '''.format(error_msg)
        |
-       |try:
+       |def _write_error(message):
+       |    with open("output.html", "w", encoding="utf-8") as output:
+       |        output.write(render_error(message))
+       |
+       |# A row missing any of the three has no point to contribute, and griddata
+       |# refuses a NaN coordinate outright.
+       |in1df = in1df.dropna(subset=[${pyStringLiteral(x)}, ${pyStringLiteral(
+      y
+    )}, ${pyStringLiteral(
+      z
+    )}])
+       |if in1df.empty:
+       |    _write_error("Table should not have any empty/null values or fields.")
+       |else:
        |    x = in1df[${pyStringLiteral(x)}].values
        |    y = in1df[${pyStringLiteral(y)}].values
        |    z = in1df[${pyStringLiteral(z)}].values
+       |
+       |    # Cubic interpolation triangulates the points before it interpolates, which
+       |    # needs them to span a plane. Points that all fall on one line leave Qhull
+       |    # without a simplex to start from and it raises instead.
+       |    points = np.unique(np.column_stack((x, y)), axis=0)
+       |    if np.linalg.matrix_rank(points - points.mean(axis=0)) < 2:
+       |        _write_error("The x and y values all fall on one line, so there is no area to contour.")
+       |        raise SystemExit(0)
+       |
        |    grid_size = ${gridSize.getOrElse(ContourPlotOpDesc.DefaultGridSize)}
        |    connGaps = True if ${pyStringLiteral(connectGaps.toString)} == "true" else False
        |
@@ -182,10 +217,7 @@ class ContourPlotOpDesc extends PythonOperatorDescriptor with StandaloneCodeGene
        |    fig.update_layout(title='Contour Plot')
        |    fig.write_json("output.json")
        |    fig.write_html("output.html")
-       |    print("Contour plot saved to output.json and output.html")
-       |except Exception as e:
-       |    with open("output.html", "w", encoding="utf-8") as output:
-       |        output.write(render_error(f"General error: {str(e)}"))""".stripMargin
+       |    print("Contour plot saved to output.json and output.html")""".stripMargin
 }
 
 object ContourPlotOpDesc {
