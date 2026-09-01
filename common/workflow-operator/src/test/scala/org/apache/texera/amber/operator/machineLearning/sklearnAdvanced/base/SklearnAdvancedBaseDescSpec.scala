@@ -157,6 +157,31 @@ class SklearnAdvancedBaseDescSpec extends AnyFlatSpec with Matchers {
     paramString should include(".values[i]")
   }
 
+  "SklearnMLOperatorDescriptor" should
+    "constrain the selected features to what the estimator can be fitted on" in {
+    // The columns reach `fit` untouched, so the accepted set is whatever scikit-learn reads
+    // as a number, a boolean included. Text and binary are left out, and so is timestamp:
+    // one on its own fits, but selected beside any other column it raises
+    // DTypePromotionError, and a rule read one column at a time cannot admit the first
+    // case without admitting the second.
+    val schema = OperatorMetadataGenerator.generateOperatorJsonSchema(
+      classOf[SklearnAdvancedKNNClassifierTrainerOpDesc]
+    )
+    schema
+      .path("attributeTypeRules")
+      .path("Selected Features")
+      .path("enum")
+      .elements()
+      .asScala
+      .map(_.asText())
+      .toSeq should contain theSameElementsAs Seq(
+      "integer",
+      "long",
+      "double",
+      "boolean"
+    )
+  }
+
   // The rules are built from the enum bound to the descriptor's type argument, so they need a
   // real operator rather than the stub above, whose TestParam is a class and has no constants.
   private def valueRulesOf(opClass: Class[_ <: org.apache.texera.amber.operator.LogicalOp]) = {
