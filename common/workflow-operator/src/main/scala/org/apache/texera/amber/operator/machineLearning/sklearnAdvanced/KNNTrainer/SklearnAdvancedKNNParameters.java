@@ -27,11 +27,16 @@ public enum SklearnAdvancedKNNParameters implements ParamClass {
     weights("weights", "str", "", "uniform", "distance"),
     algorithm("algorithm", "str", "", "auto", "ball_tree", "kd_tree", "brute"),
     leaf_size("leaf_size", "int", "30"),
-    // The last two have no example and no accepted set, because neither has a value worth
-    // naming under the converter it declares: the metrics are words while int() takes only
-    // numbers, and metric_params is a mapping that str() cannot produce.
-    metric("metric", "int", ""),
-    metric_params("metric_params", "str", "");
+    // A metric is named, not measured: "minkowski" and the rest are words, so the
+    // int() this used to declare rejected every value scikit-learn would take. The
+    // set is the one every `algorithm` above accepts -- the tree algorithms take
+    // fewer metrics than brute force, and naming a brute-only metric here would
+    // break the moment the sibling knob is moved off `auto`.
+    metric("metric", "str", "minkowski", "minkowski", "euclidean", "manhattan",
+            "chebyshev", "cityblock", "l1", "l2"),
+    // The only one that is not a scalar. scikit-learn wants a mapping of extra
+    // keyword arguments for the metric, so the user's text is read as JSON.
+    metric_params("metric_params", "json.loads", "{}");
 
     private final String name;
     private final String type;

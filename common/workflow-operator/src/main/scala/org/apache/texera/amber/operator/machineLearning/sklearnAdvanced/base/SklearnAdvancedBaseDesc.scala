@@ -281,10 +281,14 @@ abstract class SklearnMLOperatorDescriptor[T <: ParamClass]
     val stringList = getParameter(paraList)
     val trainingParam = stringList(1)
     val paramString = stringList(0)
+    // A hyperparameter's declared type is emitted as the callable that converts the
+    // user's text, and the one taking a mapping names json.loads, so json is imported
+    // whether or not the operator at hand offers such a parameter.
     val finalCode =
       pyb"""
          |from pytexera import *
          |
+         |import json
          |import pandas as pd
          |${getImportStatements}
          |
@@ -366,7 +370,10 @@ abstract class SklearnMLOperatorDescriptor[T <: ParamClass]
     val (trainingParamPlain, paramStringPlain) = getParameterStandalone(paraList)
     val loopTimesPlain = getLoopTimesStandalone(paraList)
 
-    s"""import pandas as pd
+    // Imported for the same reason the operator path imports it: a hyperparameter
+    // declaring `json.loads` as its converter names it in the emitted code.
+    s"""import json
+       |import pandas as pd
        |${getImportStatements}
        |
        |dataset = in1df

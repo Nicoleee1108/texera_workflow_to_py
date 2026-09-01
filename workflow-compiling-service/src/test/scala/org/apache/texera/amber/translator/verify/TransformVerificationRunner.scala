@@ -436,24 +436,8 @@ object TransformVerificationRunner {
             "spliced a\"b fails at the conversion rather than at any escaping"
         )
       )
-    ) ++ denseOnly ++ knnMiswired
+    ) ++ denseOnly
   }
-
-  /** The two KNN hyperparameters no value runs: each names a converter that cannot
-    * produce what scikit-learn accepts, `metric` taking `int` against a word from a
-    * fixed set and `metric_params` `str` against a mapping. The sweep still builds
-    * both, and each is named here rather than dropped where it is built: an operator
-    * offering a choice nothing works behind is a fact about the operator, and one that
-    * disappears silently is one nobody closes. These two rows go the day #7593 does.
-    */
-  private def knnMiswired: Seq[NotRun] =
-    for {
-      op <- Seq(
-        classOf[SklearnAdvancedKNNClassifierTrainerOpDesc],
-        classOf[SklearnAdvancedKNNRegressorTrainerOpDesc]
-      )
-      param <- Seq("metric", "metric_params")
-    } yield NotRun(op, RunKind.hyperParameter(param), PendingFix("apache/texera#7593"))
 
   /** Every kind of run withheld from this operator, with why. This is the whole of
     * what the coverage report needs, so it never walks the table itself. One entry

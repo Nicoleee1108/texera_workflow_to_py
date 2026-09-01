@@ -103,6 +103,9 @@ class SklearnAdvancedBaseDescSpec extends AnyFlatSpec with Matchers {
     val d = newOp(List(hyperParam("n_neighbors", "int", fromWorkflow = false, value = "5")))
     val code = d.generatePythonCode()
     code should include("from pytexera import *")
+    // Unconditional: a hyperparameter's declared type is emitted as the callable
+    // that converts the user's text, and the one taking a mapping names json.loads.
+    code should include("import json")
     code should include("from sklearn.neighbors import KNeighborsClassifier")
     code should include("class ProcessTableOperator(UDFTableOperator):")
     code should include("def process_table(")
@@ -227,11 +230,19 @@ class SklearnAdvancedBaseDescSpec extends AnyFlatSpec with Matchers {
       .flatMap(_.path("if").path("parameter").path("valEnum").elements().asScala)
       .map(_.asText())
       .toSet
-    // The rules follow the converter each parameter names, not what scikit-learn goes on to
-    // accept: metric is declared int and so is constrained to whole numbers, even though the
-    // metrics themselves are words. metric_params names str, which says nothing, so it is the
-    // one parameter left free.
-    covered shouldBe Set("n_neighbors", "p", "weights", "algorithm", "leaf_size", "metric")
+    // Every KNN parameter now says something a rule can carry: a converter that narrows
+    // the value, a set of accepted words, or an example. `metric_params` says the least
+    // of them — `json.loads` narrows nothing a JSON Schema type can express — but it
+    // still offers `{}` as the shape to start from.
+    covered shouldBe Set(
+      "n_neighbors",
+      "p",
+      "weights",
+      "algorithm",
+      "leaf_size",
+      "metric",
+      "metric_params"
+    )
   }
 
   "HyperParameters" should "require whichever of the two inputs the row actually uses" in {
