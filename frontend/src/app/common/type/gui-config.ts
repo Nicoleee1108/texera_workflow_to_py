@@ -25,6 +25,7 @@ export interface GuiConfig {
   localLogin: boolean;
   googleLogin: boolean;
   inviteOnly: boolean;
+  emailVerification: boolean;
   userPresetEnabled: boolean;
   workflowExecutionsTrackingEnabled: boolean;
   linkBreakpointEnabled: boolean;
@@ -54,7 +55,6 @@ export interface SidebarTabs {
   workflow_enabled: boolean;
   dataset_enabled: boolean;
   your_work_enabled: boolean;
-  projects_enabled: boolean;
   workflows_enabled: boolean;
   compute_enabled: boolean;
   datasets_enabled: boolean;
