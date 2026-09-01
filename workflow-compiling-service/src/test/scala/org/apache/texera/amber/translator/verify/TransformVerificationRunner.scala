@@ -371,13 +371,7 @@ object TransformVerificationRunner {
     val emptyCellRaises: Seq[(Class[_], String)] = Seq(
       classOf[SubstringSearchOpDesc] -> "apache/texera#7548",
       classOf[UnnestStringOpDesc] -> "apache/texera#7548",
-      classOf[RegexOpDesc] -> "apache/texera#7548",
-      classOf[SklearnTrainingOpDesc] -> "apache/texera#7582",
-      classOf[SklearnClassifierOpDesc] -> "apache/texera#7582",
-      // These two descend from PythonOperatorDescriptor rather than a sklearn
-      // base, so the family rows above do not reach them.
-      classOf[SklearnLinearRegressionOpDesc] -> "apache/texera#7582",
-      classOf[SklearnMLOperatorDescriptor[_]] -> "apache/texera#7582"
+      classOf[RegexOpDesc] -> "apache/texera#7548"
     )
 
     // The operator refuses the text pipeline in `getOutputSchemas`, so there is no

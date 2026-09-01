@@ -110,8 +110,15 @@ class SklearnLinearRegressionOpDesc
        |from sklearn.preprocessing import PolynomialFeatures
        |import pandas as pd
        |
-       |Y_train = in1df[$targetLit]
-       |X_train = in1df.drop($targetLit, axis=1)
+       |# The same rows the operator drops, and on both frames: the model is fitted
+       |# on one and scored on the other, so narrowing only one side would fit and
+       |# score on different data. Local names rather than reassignments, since the
+       |# input variables belong to whichever operators produced them.
+       |_train = in1df.dropna()
+       |if len(_train) < len(in1df):
+       |    print("Skipped", len(in1df) - len(_train), "of", len(in1df), "rows with missing values")
+       |Y_train = _train[$targetLit]
+       |X_train = _train.drop($targetLit, axis=1)
        |${narrowToFittableColumns("X_train", "")}
        |pipeline = make_pipeline(
        |    PolynomialFeatures(degree=$degree),
@@ -119,8 +126,9 @@ class SklearnLinearRegressionOpDesc
        |)
        |model = pipeline.fit(X_train, Y_train)
        |
-       |Y_test = in2df[$targetLit]
-       |X_test = in2df.drop($targetLit, axis=1)
+       |_test = in2df.dropna()
+       |Y_test = _test[$targetLit]
+       |X_test = _test.drop($targetLit, axis=1)
        |${narrowToFittableColumns("X_test", "")}
        |predictions = model.predict(X_test)
        |mae = round(mean_absolute_error(Y_test, predictions), 4)

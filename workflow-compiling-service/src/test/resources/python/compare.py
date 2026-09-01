@@ -101,6 +101,16 @@ def _compare_model_predictions(actual, expected, model_cols, probe_path) -> None
     if probe_path is None:
         raise AssertionError("--model-cols requires --probe with a feature set")
     probe = pd.read_json(probe_path, lines=True)
+    # The probe is the operator's own input table, so under the nulls scenario it
+    # carries the holes that scenario punched. What is under test is whether the
+    # two models agree, and an estimator that refuses a NaN at predict time would
+    # end the comparison over the probe rather than over either model. Drop those
+    # rows: both models are asked the same questions either way.
+    probe = probe.dropna()
+    if probe.empty:
+        raise AssertionError(
+            "probe has no complete row to predict on; the two models cannot be compared"
+        )
 
     for col in model_cols:
         if col not in actual.columns or col not in expected.columns:

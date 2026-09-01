@@ -34,6 +34,7 @@ import com.kjetland.jackson.jsonSchema.annotations.{
 import org.apache.texera.amber.core.tuple.{AttributeType, Schema}
 import org.apache.texera.amber.pybuilder.PyStringTypes.EncodableString
 import org.apache.texera.amber.pybuilder.PythonTemplateBuilder.PythonTemplateBuilderStringContext
+import org.apache.texera.amber.pybuilder.PythonTemplateBuilder.pyStringLiteral
 import org.apache.texera.amber.core.workflow.PortIdentity
 import org.apache.texera.amber.operator.PythonOperatorDescriptor
 import org.apache.texera.amber.operator.metadata.annotations.{
@@ -185,6 +186,22 @@ abstract class SklearnModelOpDesc extends PythonOperatorDescriptor with SklearnF
       (text :+ target).map(c => pyb"$c".toString).mkString("table.dropna(subset=[", ", ", "])")
     else if (handlesMissingValues) pyb"table.dropna(subset=[$target])".toString
     else "table.dropna()"
+
+  /** [[dropMissingRows]] for the standalone path, which names its own frame and
+    * has no `self` to decode a column name through. Stated separately rather than
+    * shared through a renderer: `pyb` encodes by the STATIC type of what it
+    * interpolates, so a column handed through a `String => String` loses the
+    * annotation that makes it encode and reaches the script raw.
+    */
+  @JsonIgnore
+  protected def dropMissingRowsStandalone(frame: String): String = {
+    val subset =
+      if (countVectorizer) (text :+ target).map(c => pyStringLiteral(c).toString)
+      else if (handlesMissingValues) Seq(pyStringLiteral(target).toString)
+      else Seq.empty
+    if (subset.isEmpty) s"$frame.dropna()"
+    else subset.mkString(s"$frame.dropna(subset=[", ", ", "])")
+  }
 
   // Rows the estimator keeps are still rows the user did not know were incomplete,
   // so say how many reached the fit. Empty for the estimators that dropped them all.

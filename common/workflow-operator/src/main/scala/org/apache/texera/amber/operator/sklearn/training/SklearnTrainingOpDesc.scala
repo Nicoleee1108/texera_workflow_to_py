@@ -72,10 +72,6 @@ $reportMissingKept
     val tfidfPart = if (tfidfTransformer) "TfidfTransformer()," else ""
     val targetLit = pyStringLiteral(target)
     val modelNameLit = pyStringLiteral(getUserFriendlyModelName)
-    // Drop the target before the pipeline reads its columns, exactly as the
-    // operator does: naming the target as a text column is reachable from the UI,
-    // and it has to fail here too rather than quietly train on the label.
-    val trainX = s"""in1df.drop($targetLit, axis=1)"""
     val narrowX = dropNonFeatureColumns("X", "")
 
     s"""${getImportStatements}
@@ -84,8 +80,14 @@ $reportMissingKept
        |from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
        |import pandas as pd
        |
-       |Y = in1df[$targetLit]
-       |X = $trainX
+       |# The same rows the operator drops. A local name rather than a
+       |# reassignment, since the input variable belongs to whichever operator
+       |# produced it.
+       |_train = ${dropMissingRowsStandalone("in1df")}
+       |if len(_train) < len(in1df):
+       |    print("Skipped", len(in1df) - len(_train), "of", len(in1df), "rows with missing values")
+       |Y = _train[$targetLit]
+       |X = _train.drop($targetLit, axis=1)
        |$narrowX
        |model = make_pipeline(${vectorizerStage(c => pyStringLiteral(c))}$tfidfPart$estimator()).fit(X, Y)
        |out1df = pd.DataFrame([{"model_name": $modelNameLit, "model": model}])""".stripMargin

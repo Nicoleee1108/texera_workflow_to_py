@@ -371,8 +371,12 @@ abstract class SklearnMLOperatorDescriptor[T <: ParamClass]
        |
        |dataset = in1df
        |table = in2df
-       |y_train = dataset[${pyStringLiteral(groundTruthAttribute)}]
        |features = [$listFeatures]
+       |rows_read = len(dataset)
+       |dataset = dataset.dropna(subset=features + [${pyStringLiteral(groundTruthAttribute)}])
+       |if len(dataset) < rows_read:
+       |    print("Skipped", rows_read - len(dataset), "of", rows_read, "rows with missing values")
+       |y_train = dataset[${pyStringLiteral(groundTruthAttribute)}]
        |X_train = dataset[features]
        |loop_times = $loopTimesPlain
        |model_list = []

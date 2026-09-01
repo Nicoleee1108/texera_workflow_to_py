@@ -84,11 +84,6 @@ $reportMissingKept
     val tfidfPart = if (tfidfTransformer) "TfidfTransformer()," else ""
     val targetLit = pyStringLiteral(target)
     val modelNameLit = pyStringLiteral(getUserFriendlyModelName)
-    // Drop the target before the pipeline reads its columns, exactly as the
-    // operator does: naming the target as a text column is reachable from the UI,
-    // and it has to fail here too rather than quietly train on the label.
-    val trainX = s"""in1df.drop($targetLit, axis=1)"""
-    val testX = s"""in2df.drop($targetLit, axis=1)"""
     val narrowTrain = dropNonFeatureColumns("X_train", "")
     val narrowTest = dropNonFeatureColumns("X_test", "")
 
@@ -100,13 +95,21 @@ $reportMissingKept
        |import numpy as np
        |import pandas as pd
        |
-       |Y_train = in1df[$targetLit]
-       |X_train = $trainX
+       |# The same rows the operator drops, and on both frames: the model is fitted
+       |# on one and scored on the other, so narrowing only one side would fit and
+       |# score on different data. A local name rather than a reassignment, since
+       |# the input variable belongs to whichever operator produced it.
+       |_train = ${dropMissingRowsStandalone("in1df")}
+       |if len(_train) < len(in1df):
+       |    print("Skipped", len(in1df) - len(_train), "of", len(in1df), "rows with missing values")
+       |Y_train = _train[$targetLit]
+       |X_train = _train.drop($targetLit, axis=1)
        |$narrowTrain
        |model = make_pipeline(${vectorizerStage(c => pyStringLiteral(c))}$tfidfPart$estimator()).fit(X_train, Y_train)
        |
-       |Y_test = in2df[$targetLit]
-       |X_test = $testX
+       |_test = ${dropMissingRowsStandalone("in2df")}
+       |Y_test = _test[$targetLit]
+       |X_test = _test.drop($targetLit, axis=1)
        |$narrowTest
        |predictions = model.predict(X_test)
        |print("Overall Accuracy:", round(accuracy_score(Y_test, predictions), 4))
