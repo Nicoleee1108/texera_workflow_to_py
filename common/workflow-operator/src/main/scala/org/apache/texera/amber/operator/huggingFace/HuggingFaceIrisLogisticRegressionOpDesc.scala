@@ -20,6 +20,7 @@
 package org.apache.texera.amber.operator.huggingFace
 
 import com.fasterxml.jackson.annotation.{JsonProperty, JsonPropertyDescription}
+import com.kjetland.jackson.jsonSchema.annotations.JsonSchemaInject
 import org.apache.texera.amber.core.tuple.{AttributeType, Schema}
 import org.apache.texera.amber.pybuilder.PyStringTypes.EncodableString
 import org.apache.texera.amber.pybuilder.PythonTemplateBuilder.PythonTemplateBuilderStringContext
@@ -29,6 +30,16 @@ import org.apache.texera.amber.operator.metadata.annotations.{AutofillAttributeN
 import org.apache.texera.amber.operator.metadata.{OperatorGroupConstants, OperatorInfo}
 import org.apache.texera.amber.pybuilder.PythonTemplateBuilder.pyStringLiteral
 
+// type constraint: both measurements are standardized against the training means
+// and handed to the model as floats, so each column can only be numeric.
+@JsonSchemaInject(json = """
+{
+  "attributeTypeRules": {
+    "petalLengthCmAttribute": { "enum": ["integer", "long", "double"] },
+    "petalWidthCmAttribute": { "enum": ["integer", "long", "double"] }
+  }
+}
+""")
 class HuggingFaceIrisLogisticRegressionOpDesc
     extends PythonOperatorDescriptor
     with StandaloneCodeGenerator {

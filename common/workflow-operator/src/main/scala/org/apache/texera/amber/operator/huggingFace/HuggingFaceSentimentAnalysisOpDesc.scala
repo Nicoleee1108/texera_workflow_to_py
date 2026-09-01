@@ -20,6 +20,7 @@
 package org.apache.texera.amber.operator.huggingFace
 
 import com.fasterxml.jackson.annotation.{JsonProperty, JsonPropertyDescription}
+import com.kjetland.jackson.jsonSchema.annotations.JsonSchemaInject
 import org.apache.texera.amber.core.tuple.{AttributeType, Schema}
 import org.apache.texera.amber.core.workflow.{InputPort, OutputPort, PortIdentity}
 import org.apache.texera.amber.operator.{PythonOperatorDescriptor, StandaloneCodeGenerator}
@@ -30,6 +31,15 @@ import org.apache.texera.amber.pybuilder.PythonTemplateBuilder.{
   PythonTemplateBuilderStringContext,
   pyStringLiteral
 }
+// type constraint: the tokenizer scores text and refuses anything that is not a
+// string, so the column can only be a string.
+@JsonSchemaInject(json = """
+{
+  "attributeTypeRules": {
+    "attribute": { "enum": ["string"] }
+  }
+}
+""")
 class HuggingFaceSentimentAnalysisOpDesc
     extends PythonOperatorDescriptor
     with StandaloneCodeGenerator {
