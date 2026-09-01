@@ -270,6 +270,11 @@ class MachineLearningScorerOpDesc extends PythonOperatorDescriptor with Standalo
          |      # A row missing either value has nothing to score, and the metrics
          |      # refuse the empty cell rather than passing over it.
          |      table = table.dropna(subset=[$actualValueColumn, $predictValueColumn])
+         |      # Nothing survived the drop. The metrics answer that badly and each in
+         |      # its own way: the regression ones raise from inside scikit-learn, and
+         |      # the classification ones return a NaN score, which reads as a result.
+         |      if table.empty:
+         |        raise ValueError("No rows left to score: every row is missing the actual value, the predicted value, or both.")
          |      y_true = table[$actualValueColumn]
          |      y_pred = table[$predictValueColumn]
          |
@@ -321,6 +326,11 @@ class MachineLearningScorerOpDesc extends PythonOperatorDescriptor with Standalo
        |in1df = in1df.dropna(subset=[${pyStringLiteral(actualValueColumn)}, ${pyStringLiteral(
       predictValueColumn
     )}])
+       |# Nothing survived the drop. The metrics answer that badly and each in its own
+       |# way: the regression ones raise from inside scikit-learn, and the
+       |# classification ones return a NaN score, which reads as a result.
+       |if in1df.empty:
+       |    raise ValueError("No rows left to score: every row is missing the actual value, the predicted value, or both.")
        |y_true = in1df[${pyStringLiteral(actualValueColumn)}]
        |y_pred = in1df[${pyStringLiteral(predictValueColumn)}]
        |metric_list = [${getSelectedMetrics()}]
