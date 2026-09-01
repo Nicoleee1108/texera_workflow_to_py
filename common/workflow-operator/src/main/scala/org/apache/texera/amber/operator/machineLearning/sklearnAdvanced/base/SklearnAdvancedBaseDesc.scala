@@ -205,6 +205,21 @@ abstract class SklearnMLOperatorDescriptor[T <: ParamClass]
     Seq.empty
   }
 
+  /**
+    * Each row emits one keyword argument, so two rows naming one parameter emit that keyword
+    * twice and Python rejects the operator with a repeated-keyword SyntaxError. Refused here
+    * instead, where the workflow fails to compile with the parameter named.
+    */
+  private def requireDistinctParameters(paraList: List[HyperParameters[T]]): Unit = {
+    val repeated = paraList.map(_.parameter.getName).groupBy(identity).collect {
+      case (name, rows) if rows.size > 1 => name
+    }
+    require(
+      repeated.isEmpty,
+      s"Each parameter can be set at most once. Set more than once: ${repeated.toSeq.sorted.mkString(", ")}."
+    )
+  }
+
   private def getLoopTimes(paraList: List[HyperParameters[T]]): PythonTemplateBuilder = {
     for (ele <- paraList) {
       if (ele.parametersSource) {
@@ -215,6 +230,7 @@ abstract class SklearnMLOperatorDescriptor[T <: ParamClass]
   }
 
   def getParameter(paraList: List[HyperParameters[T]]): List[PythonTemplateBuilder] = {
+    requireDistinctParameters(paraList)
     var workflowParam = s"";
     var portParam = pyb"";
     var paramString = pyb""

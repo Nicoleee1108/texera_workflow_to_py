@@ -1218,6 +1218,42 @@ export class OperatorPropertyEditFrameComponent implements OnInit, OnChanges, On
         };
       }
 
+      // A field the schema marks unique holds a meaning the enclosing list cannot repeat.
+      // uniqueItems cannot say this: two hyperparameter rows naming one parameter differ in
+      // their other fields, so they are distinct items while still emitting one keyword twice.
+      if (mapSource.uniqueAmongRows === true) {
+        mappedField.validators.uniqueAmongRows = {
+          expression: (control: AbstractControl, field: FormlyFieldConfig) => {
+            const rows = field.parent?.parent?.model;
+            const key = field.key;
+            if (!isDefined(control?.value) || !Array.isArray(rows) || typeof key !== "string") {
+              return true;
+            }
+            return rows.filter(row => isDefined(row) && row[key] === control.value).length <= 1;
+          },
+          message: (error: any, field: FormlyFieldConfig) =>
+            `"${field.formControl?.value}" is already set by another row`,
+        };
+        // Whether a row repeats another is a property of the whole column, but Angular reruns a
+        // validator only on the control that changed. A change is answered by rechecking every
+        // row, so the row that resolves a duplicate clears the one it left behind, and a row
+        // changed onto a parameter another row holds marks that row too.
+        mappedField.hooks = {
+          ...mappedField.hooks,
+          onInit: (field: FormlyFieldConfig) => {
+            field.formControl?.valueChanges
+              .pipe(untilDestroyed(this))
+              .subscribe(() =>
+                field.parent?.parent?.fieldGroup?.forEach(row =>
+                  row.fieldGroup
+                    ?.find(sibling => sibling.key === field.key)
+                    ?.formControl?.updateValueAndValidity({ emitEvent: false })
+                )
+              );
+          },
+        };
+      }
+
       // Add custom validators for attribute type
       if (isDefined(mapSource.attributeTypeRules)) {
         mappedField.validators.checkAttributeType = {

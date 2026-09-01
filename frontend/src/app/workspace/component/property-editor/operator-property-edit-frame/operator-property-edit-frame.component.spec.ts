@@ -29,7 +29,7 @@ import { FORM_DEBOUNCE_TIME_MS } from "../../../service/execute-workflow/execute
 import { DatePipe } from "@angular/common";
 import { By } from "@angular/platform-browser";
 import { BrowserAnimationsModule } from "@angular/platform-browser/animations";
-import { FormControl, FormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { AbstractControl, FormControl, FormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { FormlyFieldConfig, FormlyModule } from "@ngx-formly/core";
 import { TEXERA_FORMLY_CONFIG } from "../../../../common/formly/formly-config";
 import { HttpClientTestingModule } from "@angular/common/http/testing";
@@ -1820,6 +1820,36 @@ describe("OperatorPropertyEditFrameComponent", () => {
       );
     });
 
+    it("adds a uniqueAmongRows validator that rejects a value another row already holds", () => {
+      component.setFormlyFormBinding({
+        type: "object",
+        properties: {
+          paraList: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: { parameter: { type: "string", uniqueAmongRows: true } },
+            },
+          },
+        },
+      } as CustomJSONSchema7);
+      // A row's own fields exist only once formly is asked to build a row.
+      const arrayField = getField("paraList")!;
+      const rowField = (arrayField.fieldArray as (root: FormlyFieldConfig) => FormlyFieldConfig)(arrayField);
+      const validator = rowField.fieldGroup?.find(f => f.key === "parameter")?.validators?.["uniqueAmongRows"];
+      expect(validator).toBeDefined();
+
+      const twoRowsSettingC = {
+        key: "parameter",
+        parent: { parent: { model: [{ parameter: "C" }, { parameter: "C" }] } },
+      } as any;
+      expect(validator!.expression({ value: "C" } as any, twoRowsSettingC)).toBe(false);
+      expect(validator!.expression({ value: "kernel" } as any, twoRowsSettingC)).toBe(true);
+      expect(validator!.message(null, { formControl: { value: "C" } } as any)).toBe(
+        '"C" is already set by another row'
+      );
+    });
+
     it("maps datasetVersionPath to the datasetversionselector field type", () => {
       component.setFormlyFormBinding({
         type: "object",
@@ -2223,6 +2253,66 @@ describe("OperatorPropertyEditFrameComponent", () => {
     it("should not render pills when pills array is empty", () => {
       setupPreview({ kind: "text", title: "T", pills: [] });
       expect(realFixture.debugElement.query(By.css(".hf-task-preview-pills"))).toBeNull();
+    });
+
+    // Two rows holding one parameter mark each other, so the row that resolves the duplicate
+    // has to clear the row it left behind. Only a rendered form has the second row to clear.
+    describe("uniqueAmongRows across rendered rows", () => {
+      function renderTwoRows(first: string, second: string): void {
+        // A form the frame holds locked is disabled, and Angular does not validate a disabled control.
+        realComponent.interactive = true;
+        realComponent.setFormlyFormBinding({
+          type: "object",
+          properties: {
+            paraList: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: { parameter: { type: "string", uniqueAmongRows: true } },
+              },
+            },
+          },
+        } as CustomJSONSchema7);
+        realComponent.formData = { paraList: [{ parameter: first }, { parameter: second }] };
+        realFixture.detectChanges();
+      }
+
+      function rowControl(index: number): AbstractControl {
+        return realComponent.formlyFormGroup!.get(["paraList", String(index), "parameter"])!;
+      }
+
+      function typeIntoRow(index: number, parameter: string): void {
+        const input = realFixture.debugElement.queryAll(By.css("input"))[index].nativeElement as HTMLInputElement;
+        input.value = parameter;
+        input.dispatchEvent(new Event("input"));
+        realFixture.detectChanges();
+      }
+
+      it("marks both rows that name one parameter", () => {
+        renderTwoRows("C", "C");
+        expect(realFixture.debugElement.queryAll(By.css("input")).length).toBe(2);
+        expect(rowControl(0).hasError("uniqueAmongRows")).toBe(true);
+        expect(rowControl(1).hasError("uniqueAmongRows")).toBe(true);
+      });
+
+      it("clears the row left behind when the other row picks a free parameter", () => {
+        renderTwoRows("C", "C");
+
+        typeIntoRow(1, "kernel");
+
+        expect(rowControl(0).hasError("uniqueAmongRows")).toBe(false);
+        expect(rowControl(1).hasError("uniqueAmongRows")).toBe(false);
+      });
+
+      it("marks the row already holding the parameter a row is changed onto", () => {
+        renderTwoRows("C", "kernel");
+        expect(rowControl(0).hasError("uniqueAmongRows")).toBe(false);
+
+        typeIntoRow(1, "C");
+
+        expect(rowControl(0).hasError("uniqueAmongRows")).toBe(true);
+        expect(rowControl(1).hasError("uniqueAmongRows")).toBe(true);
+      });
     });
   });
 
