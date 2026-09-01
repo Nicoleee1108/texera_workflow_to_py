@@ -170,6 +170,12 @@ class WorkflowToPythonTranslator extends LazyLogging {
   ): String = {
     var result = code
 
+    // A variadic port takes as many upstream links as the user draws, and an
+    // operator reading one cannot name them: `in1df`/`in2df` state a count, and
+    // whichever count it states is wrong for every other workflow. This one
+    // placeholder becomes the whole list, so the operator writes the same line
+    // whether it is fed one table or five.
+    result = result.replaceAll("""\binAlldf\b""", inVars.mkString("[", ", ", "]"))
     inVars.zipWithIndex.reverse.foreach {
       case (v, idx) => result = result.replaceAll(s"\\bin${idx + 1}df\\b", v)
     }

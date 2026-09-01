@@ -31,6 +31,7 @@ package org.apache.texera.amber.translator.verify
 import org.apache.texera.amber.operator.hashJoin.HashJoinOpDesc
 import org.apache.texera.amber.operator.limit.LimitOpDesc
 import org.apache.texera.amber.operator.union.UnionOpDesc
+import org.apache.texera.amber.operator.visualization.wordCloud.WordCloudOpDesc
 import org.apache.texera.amber.operator.visualization.barChart.BarChartOpDesc
 import org.apache.texera.amber.operator.visualization.DotPlot.DotPlotOpDesc
 import org.apache.texera.amber.operator.visualization.ImageViz.ImageVisualizerOpDesc
@@ -63,16 +64,24 @@ class TransformVerificationRunnerSpec extends AnyFlatSpec with Matchers {
   import TransformVerificationRunner._
 
   "disposition" should "flag knownIssues operators with the triage reason" in {
-    disposition(classOf[UnionOpDesc]) match {
-      case Flagged(reason) => reason should include("known issue")
-      case other           => fail(s"expected Flagged, got $other")
-    }
     // The prediction op consumes a trained model on its input port, which a
     // JVM-written JSONL fixture can't carry; triaged as a known issue, not run.
     disposition(classOf[SklearnPredictionOpDesc]) match {
       case Flagged(reason) => reason should include("trained-model")
       case other           => fail(s"expected Flagged, got $other")
     }
+    disposition(classOf[WordCloudOpDesc]) match {
+      case Flagged(reason) => reason should include("known issue")
+      case other           => fail(s"expected Flagged, got $other")
+    }
+  }
+
+  it should "run the union now that its code names every upstream" in {
+    // It used to be flagged for naming exactly two, which was wrong in both
+    // directions: a third link was dropped and a lone link left the second
+    // frame unbound. The runner draws one link per port, so what runs here is
+    // the one-upstream case — the one the old code got wrong.
+    disposition(classOf[UnionOpDesc]) shouldBe Runnable("auto")
   }
 
   it should "route visualization operators with JSON validation support to the visualization tier" in {

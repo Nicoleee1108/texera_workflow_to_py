@@ -53,7 +53,6 @@ import org.apache.texera.amber.operator.substringSearch.SubstringSearchOpDesc
 import org.apache.texera.amber.operator.typecasting.TypeCastingOpDesc
 import org.apache.texera.amber.operator.unneststring.UnnestStringOpDesc
 import org.apache.texera.amber.operator.visualization.wordCloud.WordCloudOpDesc
-import org.apache.texera.amber.operator.union.UnionOpDesc
 import org.apache.texera.amber.operator.visualization.DotPlot.DotPlotOpDesc
 import org.apache.texera.amber.operator.visualization.barChart.BarChartOpDesc
 import org.apache.texera.amber.operator.visualization.boxViolinPlot.BoxViolinPlotOpDesc
@@ -533,9 +532,6 @@ object TransformVerificationRunner {
     * the test report and coverage table.
     */
   val knownIssues: Map[Class[_], String] = Map(
-    classOf[UnionOpDesc] ->
-      ("variadic input port: generateStandaloneCode assumes exactly 2 " +
-        "upstream links but operatorInfo declares a single multi-link port"),
     classOf[DummyOpDesc] ->
       ("harness gap: placeholder operator with no physical execution — " +
         "LogicalOp.getPhysicalOp throws NotImplementedError"),

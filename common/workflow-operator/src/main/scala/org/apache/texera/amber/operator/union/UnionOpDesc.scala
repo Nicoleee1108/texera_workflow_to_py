@@ -51,8 +51,10 @@ class UnionOpDesc extends LogicalOp with StandaloneCodeGenerator {
       outputPorts = List(OutputPort())
     )
 
-  // UNION ALL (UnionOpExec passes tuples through, no dedup). Variadic port: the
-  // in1df/in2df scheme only expresses 2 inputs, so a 3rd+ upstream is dropped.
+  // UNION ALL: UnionOpExec passes tuples through without dedup. The port is
+  // variadic, so the code names the whole list of upstreams rather than a fixed
+  // two — naming two dropped a third and left the second unbound when only one
+  // was drawn.
   override def generateStandaloneCode(): String =
-    "out1df = pd.concat([in1df, in2df], ignore_index=True)"
+    "out1df = pd.concat(inAlldf, ignore_index=True)"
 }

@@ -92,10 +92,12 @@ class UnionOpDescSpec extends AnyFlatSpec with Matchers {
   // ---------------------------------------------------------------------------
 
   // UNION ALL: UnionOpExec passes tuples through without dedup, so the
-  // generated concat must not drop duplicates either.
-  "UnionOpDesc.generateStandaloneCode" should "concatenate both inputs without dedup" in {
+  // generated concat must not drop duplicates either. It names the whole list
+  // of upstreams rather than a fixed two, because the port is variadic and any
+  // count the code stated would be wrong for some workflow.
+  "UnionOpDesc.generateStandaloneCode" should "concatenate every input without dedup" in {
     (new UnionOpDesc).generateStandaloneCode() shouldBe
-      "out1df = pd.concat([in1df, in2df], ignore_index=True)"
+      "out1df = pd.concat(inAlldf, ignore_index=True)"
   }
 
   // ---------------------------------------------------------------------------

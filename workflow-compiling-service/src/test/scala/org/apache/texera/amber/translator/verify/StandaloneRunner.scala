@@ -40,6 +40,7 @@ import scala.sys.process._
   *     in1df = pd.read_json("input_port_0.jsonl", lines=True)
   *     in2df = pd.read_json("input_port_1.jsonl", lines=True)
   *     ...
+  *     inAlldf = [in1df, in2df]
   *   ── operator body (verbatim from generateStandaloneCode) ──
   *     out1df = in1df[in1df["age"] > 18]
   *   ── epilogue ─────────────────────────────────────────────
@@ -264,6 +265,15 @@ object StandaloneRunner extends LazyLogging {
           sb.append(s"if ${py(col)} in in${n}df.columns:\n")
           sb.append(s"    in${n}df[${py(col)}] = in${n}df[${py(col)}].astype('float64')\n")
         }
+    }
+    // The variadic placeholder, bound here for the same reason the numbered ones
+    // are: this script leaves the body's placeholders alone and defines names to
+    // match them, so an operator reading a variadic port finds its list here the
+    // way the translator would have written one out.
+    if (inputs.nonEmpty) {
+      sb.append(
+        inputs.keys.toSeq.sorted.map(n => s"in${n}df").mkString("inAlldf = [", ", ", "]\n")
+      )
     }
     sb.append("\n")
 
