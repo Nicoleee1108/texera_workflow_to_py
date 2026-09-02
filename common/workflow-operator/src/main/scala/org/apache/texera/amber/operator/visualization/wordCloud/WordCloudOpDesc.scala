@@ -37,6 +37,16 @@ import org.apache.texera.amber.pybuilder.PythonTemplateBuilder
 import org.apache.texera.amber.pybuilder.PythonTemplateBuilder.pyStringLiteral
 
 import javax.validation.constraints.NotNull
+// type constraint: the words are counted out of the column's text, and the
+// filter that finds them uses pandas' .str accessor, which refuses a column of
+// anything else. A word cloud of numbers would say nothing anyway.
+@JsonSchemaInject(json = """
+{
+  "attributeTypeRules": {
+    "textColumn": { "enum": ["string"] }
+  }
+}
+""")
 class WordCloudOpDesc extends PythonOperatorDescriptor with StandaloneCodeGenerator {
   @JsonProperty(required = true)
   @JsonSchemaTitle("Text column")
@@ -146,7 +156,7 @@ class WordCloudOpDesc extends PythonOperatorDescriptor with StandaloneCodeGenera
        |    else:
        |        text = ' '.join(table[$textLit])
        |        from wordcloud import WordCloud, STOPWORDS
-       |        wordcloud = WordCloud(width=1920, height=1080, stopwords=set(STOPWORDS), max_words=$topN, background_color='white', include_numbers=True).generate(text)
+       |        wordcloud = WordCloud(width=1920, height=1080, stopwords=set(STOPWORDS), max_words=$topN, background_color='white', include_numbers=True, random_state=0).generate(text)
        |        from io import BytesIO
        |        image_stream = BytesIO()
        |        wordcloud.to_image().save(image_stream, format='PNG')

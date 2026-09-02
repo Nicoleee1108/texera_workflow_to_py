@@ -31,6 +31,8 @@ package org.apache.texera.amber.translator.verify
 import org.apache.texera.amber.operator.hashJoin.HashJoinOpDesc
 import org.apache.texera.amber.operator.limit.LimitOpDesc
 import org.apache.texera.amber.operator.union.UnionOpDesc
+import org.apache.texera.amber.operator.dummy.DummyOpDesc
+import org.apache.texera.amber.operator.visualization.networkGraph.NetworkGraphOpDesc
 import org.apache.texera.amber.operator.visualization.wordCloud.WordCloudOpDesc
 import org.apache.texera.amber.operator.visualization.barChart.BarChartOpDesc
 import org.apache.texera.amber.operator.visualization.DotPlot.DotPlotOpDesc
@@ -70,10 +72,18 @@ class TransformVerificationRunnerSpec extends AnyFlatSpec with Matchers {
       case Flagged(reason) => reason should include("trained-model")
       case other           => fail(s"expected Flagged, got $other")
     }
-    disposition(classOf[WordCloudOpDesc]) match {
+    disposition(classOf[DummyOpDesc]) match {
       case Flagged(reason) => reason should include("known issue")
       case other           => fail(s"expected Flagged, got $other")
     }
+  }
+
+  // Both were flagged for drawing a different picture each run, which stopped
+  // being true when apache/texera#7533 seeded them. Lifting those rows is what
+  // exposed the three defects the reason had been hiding.
+  it should "run the two seeded visualizations" in {
+    disposition(classOf[WordCloudOpDesc]) shouldBe Runnable("visualization")
+    disposition(classOf[NetworkGraphOpDesc]) shouldBe Runnable("visualization")
   }
 
   it should "run the union now that its code names every upstream" in {

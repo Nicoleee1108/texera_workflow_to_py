@@ -67,6 +67,10 @@ class NetworkGraphOpDesc extends PythonOperatorDescriptor with StandaloneCodeGen
       OperatorGroupConstants.VISUALIZATION_SCIENTIFIC_GROUP
     )
 
+  /** An edge needs both of its ends, and networkx refuses a null as a node
+    * outright. A row missing either one names no edge, so it goes before the
+    * graph is built rather than reaching add_node.
+    */
   def manipulateTable(): PythonTemplateBuilder = {
     assert(source.nonEmpty, "Source Column cannot be empty")
     assert(destination.nonEmpty, "Destination Column cannot be empty")
@@ -96,6 +100,7 @@ class NetworkGraphOpDesc extends PythonOperatorDescriptor with StandaloneCodeGen
          |
          |    @overrides
          |    def process_table(self, table: Table, port: int) -> Iterator[Optional[TableLike]]:
+         |${manipulateTable()}
          |        if not table.empty:
          |            sources = table[$source]
          |            destinations = table[$destination]
