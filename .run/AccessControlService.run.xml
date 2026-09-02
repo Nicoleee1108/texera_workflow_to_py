@@ -27,6 +27,11 @@ under the License.
         <option name="ENABLED" value="true" />
       </pattern>
     </extension>
+    <envs>
+      <env name="STORAGE_ICEBERG_CATALOG_TYPE" value="postgres" />
+      <env name="STORAGE_JDBC_USERNAME" value="texera" />
+      <env name="STORAGE_JDBC_PASSWORD" value="password" />
+    </envs>
     <method v="2">
       <option name="Make" enabled="true" />
     </method>
