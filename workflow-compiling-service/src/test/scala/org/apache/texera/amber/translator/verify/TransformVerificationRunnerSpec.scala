@@ -28,16 +28,20 @@ package org.apache.texera.amber.translator.verify
 // disposition asserts — which tier an operator routes to — is the one thing
 // OperatorBehaviorSpec does not check, so it lives here.
 
+import org.apache.texera.amber.operator.dummy.DummyOpDesc
 import org.apache.texera.amber.operator.hashJoin.HashJoinOpDesc
 import org.apache.texera.amber.operator.limit.LimitOpDesc
+import org.apache.texera.amber.operator.udf.python.PythonUDFOpDescV2
 import org.apache.texera.amber.operator.union.UnionOpDesc
-import org.apache.texera.amber.operator.dummy.DummyOpDesc
-import org.apache.texera.amber.operator.visualization.networkGraph.NetworkGraphOpDesc
-import org.apache.texera.amber.operator.visualization.wordCloud.WordCloudOpDesc
-import org.apache.texera.amber.operator.visualization.barChart.BarChartOpDesc
+import org.apache.texera.amber.operator.machineLearning.Scorer.MachineLearningScorerOpDesc
+import org.apache.texera.amber.operator.machineLearning.sklearnAdvanced.SVCTrainer.SklearnAdvancedSVCTrainerOpDesc
+import org.apache.texera.amber.operator.sklearn.SklearnPredictionOpDesc
+import org.apache.texera.amber.operator.sklearn.training.SklearnTrainingLogisticRegressionOpDesc
 import org.apache.texera.amber.operator.visualization.DotPlot.DotPlotOpDesc
-import org.apache.texera.amber.operator.visualization.ImageViz.ImageVisualizerOpDesc
 import org.apache.texera.amber.operator.visualization.IcicleChart.IcicleChartOpDesc
+import org.apache.texera.amber.operator.visualization.ImageViz.ImageVisualizerOpDesc
+import org.apache.texera.amber.operator.visualization.ScatterMatrixChart.ScatterMatrixChartOpDesc
+import org.apache.texera.amber.operator.visualization.barChart.BarChartOpDesc
 import org.apache.texera.amber.operator.visualization.boxViolinPlot.BoxViolinPlotOpDesc
 import org.apache.texera.amber.operator.visualization.bubbleChart.BubbleChartOpDesc
 import org.apache.texera.amber.operator.visualization.bulletChart.BulletChartOpDesc
@@ -54,11 +58,8 @@ import org.apache.texera.amber.operator.visualization.filledAreaPlot.FilledAreaP
 import org.apache.texera.amber.operator.visualization.funnelPlot.FunnelPlotOpDesc
 import org.apache.texera.amber.operator.visualization.ganttChart.GanttChartOpDesc
 import org.apache.texera.amber.operator.visualization.gaugeChart.GaugeChartOpDesc
-import org.apache.texera.amber.operator.visualization.ScatterMatrixChart.ScatterMatrixChartOpDesc
-import org.apache.texera.amber.operator.machineLearning.Scorer.MachineLearningScorerOpDesc
-import org.apache.texera.amber.operator.sklearn.SklearnPredictionOpDesc
-import org.apache.texera.amber.operator.sklearn.training.SklearnTrainingLogisticRegressionOpDesc
-import org.apache.texera.amber.operator.machineLearning.sklearnAdvanced.SVCTrainer.SklearnAdvancedSVCTrainerOpDesc
+import org.apache.texera.amber.operator.visualization.networkGraph.NetworkGraphOpDesc
+import org.apache.texera.amber.operator.visualization.wordCloud.WordCloudOpDesc
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
@@ -72,18 +73,12 @@ class TransformVerificationRunnerSpec extends AnyFlatSpec with Matchers {
       case Flagged(reason) => reason should include("trained-model")
       case other           => fail(s"expected Flagged, got $other")
     }
+    // The other kind of row: a placeholder with no physical execution, so the
+    // harness has nothing to run either path against.
     disposition(classOf[DummyOpDesc]) match {
       case Flagged(reason) => reason should include("known issue")
       case other           => fail(s"expected Flagged, got $other")
     }
-  }
-
-  // Both were flagged for drawing a different picture each run, which stopped
-  // being true when apache/texera#7533 seeded them. Lifting those rows is what
-  // exposed the three defects the reason had been hiding.
-  it should "run the two seeded visualizations" in {
-    disposition(classOf[WordCloudOpDesc]) shouldBe Runnable("visualization")
-    disposition(classOf[NetworkGraphOpDesc]) shouldBe Runnable("visualization")
   }
 
   it should "run the union now that its code names every upstream" in {
@@ -94,8 +89,21 @@ class TransformVerificationRunnerSpec extends AnyFlatSpec with Matchers {
     disposition(classOf[UnionOpDesc]) shouldBe Runnable("auto")
   }
 
-  it should "route visualization operators with JSON validation support to the visualization tier" in {
+  it should "route auto-configurable operators to the auto tier" in {
+    disposition(classOf[LimitOpDesc]) shouldBe Runnable("auto")
+  }
+
+  // Both were withheld for drawing a different picture on every run, which
+  // stopped being true once their placement was seeded.
+  it should "run the two seeded visualizations" in {
+    disposition(classOf[WordCloudOpDesc]) shouldBe Runnable("visualization")
+    disposition(classOf[NetworkGraphOpDesc]) shouldBe Runnable("visualization")
+  }
+
+  it should "route the visualizations to the visualization tier" in {
     disposition(classOf[BarChartOpDesc]) shouldBe Runnable("visualization")
+    disposition(classOf[BoxViolinPlotOpDesc]) shouldBe Runnable("visualization")
+    disposition(classOf[BubbleChartOpDesc]) shouldBe Runnable("visualization")
     disposition(classOf[BulletChartOpDesc]) shouldBe Runnable("visualization")
     disposition(classOf[CandlestickChartOpDesc]) shouldBe Runnable("visualization")
     disposition(classOf[CarpetPlotOpDesc]) shouldBe Runnable("visualization")
@@ -103,6 +111,7 @@ class TransformVerificationRunnerSpec extends AnyFlatSpec with Matchers {
     disposition(classOf[ContinuousErrorBandsOpDesc]) shouldBe Runnable("visualization")
     disposition(classOf[ContourPlotOpDesc]) shouldBe Runnable("visualization")
     disposition(classOf[DendrogramOpDesc]) shouldBe Runnable("visualization")
+    disposition(classOf[DotPlotOpDesc]) shouldBe Runnable("visualization")
     disposition(classOf[DumbbellPlotOpDesc]) shouldBe Runnable("visualization")
     disposition(classOf[ECDFPlotOpDesc]) shouldBe Runnable("visualization")
     disposition(classOf[FigureFactoryTableOpDesc]) shouldBe Runnable("visualization")
@@ -110,10 +119,7 @@ class TransformVerificationRunnerSpec extends AnyFlatSpec with Matchers {
     disposition(classOf[FunnelPlotOpDesc]) shouldBe Runnable("visualization")
     disposition(classOf[GanttChartOpDesc]) shouldBe Runnable("visualization")
     disposition(classOf[GaugeChartOpDesc]) shouldBe Runnable("visualization")
-    disposition(classOf[DotPlotOpDesc]) shouldBe Runnable("visualization")
     disposition(classOf[IcicleChartOpDesc]) shouldBe Runnable("visualization")
-    disposition(classOf[BubbleChartOpDesc]) shouldBe Runnable("visualization")
-    disposition(classOf[BoxViolinPlotOpDesc]) shouldBe Runnable("visualization")
     disposition(classOf[ImageVisualizerOpDesc]) shouldBe Runnable("visualization")
     disposition(classOf[ScatterMatrixChartOpDesc]) shouldBe Runnable("visualization")
   }
@@ -144,7 +150,11 @@ class TransformVerificationRunnerSpec extends AnyFlatSpec with Matchers {
     fixtureFor(classOf[SklearnAdvancedSVCTrainerOpDesc]) shouldBe CanonicalFixture.sklearnNumeric
   }
 
-  it should "route auto-configurable operators to the auto tier" in {
-    disposition(classOf[LimitOpDesc]) shouldBe Runnable("auto")
+  // A UDF's body is written by whoever drops the operator, so there is nothing
+  // for a generator to emit. It stands here for the shape of the report: an
+  // operator that cannot be exported is carried as a row, not passed over.
+  it should "flag an operator that has no standalone generator" in {
+    disposition(classOf[PythonUDFOpDescV2]) shouldBe
+      Flagged("does not implement StandaloneCodeGenerator")
   }
 }

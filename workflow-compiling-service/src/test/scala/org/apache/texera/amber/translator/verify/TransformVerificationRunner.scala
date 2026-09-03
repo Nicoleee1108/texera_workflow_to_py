@@ -43,7 +43,6 @@ import org.apache.texera.amber.operator.machineLearning.Scorer.MachineLearningSc
 import org.apache.texera.amber.operator.huggingFace.HuggingFaceSpamSMSDetectionOpDesc
 import org.apache.texera.amber.operator.sklearn.training.SklearnTrainingOpDesc
 import org.apache.texera.amber.operator.sklearn.training.SklearnTrainingGaussianNaiveBayesOpDesc
-import org.apache.texera.amber.operator.regex.RegexOpDesc
 import org.apache.texera.amber.operator.sklearn.testing.SklearnTestingOpDesc
 import org.apache.texera.amber.operator.typecasting.TypeCastingOpDesc
 import org.apache.texera.amber.operator.visualization.wordCloud.WordCloudOpDesc
@@ -122,31 +121,20 @@ object TransformVerificationRunner {
     * knobs that its metadata does not say.
     *
     * `Pinned` holds a knob at one value and keeps it out of the sweep, for a
-    * knob whose other value selects non-determinism rather than a different
-    * behavior to check. Split's "Auto-Generate Seed" is the case: with it on the
-    * executor seeds from the clock, so that run agrees with nothing — its own
-    * previous run included — and there is no output for a script to reproduce.
-    * Everything else about the operator is deterministic, so pinning covers the
-    * partition rather than abandoning the operator over one switch. The value
-    * reaches the test name via [[pinnedTierNote]], so the run does not read as
-    * full coverage.
+    * knob whose other value selects non-determinism rather than another
+    * behaviour to check. Split's "Auto-Generate Seed" is the case: with it on
+    * the executor seeds from the clock, so that run agrees with nothing, its own
+    * previous run included. The value reaches the test name via
+    * [[pinnedTierNote]], so the run does not read as full coverage.
     *
     * `WithOptionals` sets a knob inside the `optionals` variant, for a branch
-    * that needs a switch AND the field it governs. Ternary Plot colours its
-    * points only when `colorEnabled` is on and `colorDataField` is set, and the
-    * two belong to different mechanisms: the sweep turns the switch on with the
-    * column empty, the optional fill supplies the column with the switch off, so
-    * neither variant generated the coloured branch. Naming the switch here puts
-    * it in the variant that fills the column.
+    * that needs a switch and the field it governs together. Ternary Plot colours
+    * its points only when both are set, and the sweep and the optional fill each
+    * supply one, so neither variant reached the coloured branch.
     *
     * Named per operator rather than applied wholesale, because switches are not
-    * generally independent: turning every Boolean on in that variant paired
-    * Sklearn's `countVectorizer` with `tfidfTransformer` (mutually exclusive
-    * text pipelines), asked File Scan to extract an archive from a plain file,
-    * and re-enabled the very auto-seed switch the first scope holds off.
-    *
-    * Distinct from an `enumSweep` row in [[variantsNotRun]], which is about an
-    * operator's enums as a whole rather than one named knob.
+    * generally independent: turning every Boolean on at once paired Sklearn's
+    * two mutually exclusive text pipelines, among others.
     */
   sealed trait KnobScope
   object KnobScope {
@@ -360,14 +348,6 @@ object TransformVerificationRunner {
     * and change when the fixture is rewritten.
     */
   val variantsNotRun: Seq[NotRun] = {
-    // The platform raises on an empty cell, so the two paths cannot be compared
-    // on one until it stops.
-    val emptyCellRaises: Seq[(Class[_], String)] = Seq(
-      // Regex alone: apache/texera#7566 answers the empty cell in Substring Search
-      // and Unnest String, and this one was not part of it.
-      classOf[RegexOpDesc] -> "apache/texera#7548"
-    )
-
     // The operator refuses the text pipeline in `getOutputSchemas`, so there is no
     // configuration to compare: neither path is generated. An invalid configuration
     // rather than a translation gap.
@@ -386,9 +366,7 @@ object TransformVerificationRunner {
       label <- Seq(RunKind.CountVectorizerText, RunKind.TfidfText)
     } yield NotRun(op, label, dense)
 
-    emptyCellRaises.map {
-      case (op, issue) => NotRun(op, RunKind.Nulls, PendingFix(issue))
-    } ++ Seq(
+    Seq(
       // An enum whose legal values depend on a sibling field: flipping it alone
       // builds a config the curated fixture already covers properly.
       NotRun(
@@ -448,8 +426,8 @@ object TransformVerificationRunner {
 
   /** Visualization operators with deterministic Plotly JSON validation. */
   val visualizationJsonOps: Set[Class[_]] = Set(
-    // Its layout is seeded (apache/texera#7533), so both paths place the nodes
-    // identically and the two Plotly figures can be compared number by number.
+    // Its layout is seeded, so both paths place the nodes identically and the two
+    // figures can be compared number by number.
     classOf[NetworkGraphOpDesc],
     classOf[RangeSliderOpDesc],
     classOf[HeatMapOpDesc],
@@ -500,9 +478,9 @@ object TransformVerificationRunner {
   /** Visualization operators with deterministic HTML validation. */
   val visualizationHtmlOps: Set[Class[_]] = Set(
     classOf[ImageVisualizerOpDesc],
-    // A word cloud is a PNG, not a figure with values to read, so the two paths
-    // are compared as the HTML they emit. Its placement is seeded
-    // (apache/texera#7533), which is what makes that comparison meaningful.
+    // A word cloud is a picture, not a figure with values to read, so the two
+    // paths are compared as the HTML they emit. Its placement is seeded, which
+    // is what makes that comparison mean anything.
     classOf[WordCloudOpDesc],
     classOf[NestedTableOpDesc]
   )
