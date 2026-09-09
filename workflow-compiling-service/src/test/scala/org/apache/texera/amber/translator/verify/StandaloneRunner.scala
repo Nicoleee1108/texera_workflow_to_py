@@ -249,10 +249,20 @@ object StandaloneRunner extends LazyLogging {
     // strings, which the runtime path delivers as datetime64 — a divergence for
     // any operator that renders or computes on them. The fixture's schema
     // sidecar says which columns those are, so cast exactly those back.
+    // dtype: pd.read_json infers a column of numeric-looking strings as a
+    // number, so a STRING column holding "001" loads as 1 and one holding only
+    // nulls loads as NaN rather than None. The runtime path calls str() on the
+    // cell and leaves a null alone, so the two disagree about the operator's
+    // INPUT. Naming the sidecar's STRING columns as object pins them.
     inputs.toSeq.sortBy(_._1).foreach {
       case (n, path) =>
+        val dtype = stringColumns(path) match {
+          case Seq() => ""
+          case cols  => cols.map(c => s"${py(c)}: 'object'").mkString(", dtype={", ", ", "}")
+        }
         sb.append(
-          s"in${n}df = pd.read_json(${py(path.toString)}, lines=True, convert_dates=False, precise_float=True)\n"
+          s"in${n}df = pd.read_json(${py(path.toString)}, lines=True, " +
+            s"convert_dates=False, precise_float=True$dtype)\n"
         )
         timestampColumns(path).foreach { col =>
           sb.append(s"if ${py(col)} in in${n}df.columns:\n")
@@ -272,6 +282,13 @@ object StandaloneRunner extends LazyLogging {
         inputs.keys.toSeq.sorted.map(n => s"in${n}df").mkString("inAlldf = [", ", ", "]\n")
       )
     }
+    // The file placeholders, bound for the same reason. The translator hands
+    // each chart in a plan a name of its own, since they all write into one
+    // directory; a script this runner builds holds a single operator, so the
+    // plain names are already unambiguous and the comparison knows where to
+    // look.
+    sb.append("outputHtml = \"output.html\"\n")
+    sb.append("outputJson = \"output.json\"\n")
     sb.append("\n")
 
     // Body verbatim — placeholders left in place.
@@ -316,6 +333,10 @@ object StandaloneRunner extends LazyLogging {
   private def doubleColumns(input: Path): Seq[String] =
     columnsOfType(input, AttributeType.DOUBLE)
 
+  // STRING-typed column names, for the read_json dtype map above.
+  private def stringColumns(input: Path): Seq[String] =
+    columnsOfType(input, AttributeType.STRING)
+
   private def columnsOfType(input: Path, attributeType: AttributeType): Seq[String] =
     scala.util
       .Try(TupleIO.readSchemaSidecar(input))
@@ -328,9 +349,16 @@ object StandaloneRunner extends LazyLogging {
   // Python string literal, single-quoted with backslashes escaped. We
   // deliberately don't use repr() in Scala (no such thing) — JSON.toString
   // would also work but introduces double-quote escaping when the path has
-  // spaces.
+  // spaces. Control characters are escaped too: the fixture carries a column
+  // whose name holds a literal newline, and a raw one here would end the
+  // literal mid-line and leave the script unparseable.
   private def py(s: String): String =
-    "'" + s.replace("\\", "\\\\").replace("'", "\\'") + "'"
+    s.map {
+      case '\\'                => "\\\\"
+      case '\''                => "\\'"
+      case c if c.toInt < 0x20 => f"\\x${c.toInt}%02x"
+      case c                   => c.toString
+    }.mkString("'", "", "'")
 
   // Resolution chain mirrors the rest of the Texera test infra: env var first
   // (set by CI / the shared-venv setup), then conventional names.

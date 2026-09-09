@@ -24,6 +24,17 @@ import java.nio.charset.StandardCharsets
 
 trait StandaloneCodeGenerator {
 
+  /**
+    * The Python this operator contributes to an exported script.
+    *
+    * Frames are named by placeholder rather than outright: `in1df`, `in2df` and
+    * so on for what the operator reads, `out1df` and so on for what it writes,
+    * and the translator puts the variables it assigned in their place. A file
+    * the operator writes is named the same way, `outputHtml` or `outputJson`
+    * standing where the name would otherwise be spelt. The whole plan runs as
+    * one program in one directory, so a chart that names its own file is
+    * overwritten by the next chart naming the same one.
+    */
   def generateStandaloneCode(): String
 
   /**

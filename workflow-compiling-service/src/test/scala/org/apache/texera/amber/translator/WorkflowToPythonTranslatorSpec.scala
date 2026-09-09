@@ -94,6 +94,25 @@ class WorkflowToPythonTranslatorSpec extends AnyFlatSpec with Matchers {
     script should include("df2 = df1.drop_duplicates(ignore_index=True)")
   }
 
+  /** Two operators that write a file write two of them. The plan runs as one
+    * program in one directory, so a name either of them had chosen for itself
+    * would leave one picture where the workflow drew two.
+    */
+  it should "give each operator writing a file a name of its own" in {
+    val ops = List("a", "b").map { id =>
+      val op = new DistinctOpDesc {
+        override def generateStandaloneCode(): String =
+          "fig.write_json(outputJson)\nfig.write_html(outputHtml)"
+      }
+      op.setOperatorId(id)
+      op
+    }
+    val script = new WorkflowToPythonTranslator().translate(LogicalPlan(ops, List.empty))
+    script should include("""fig.write_json("distinct_1.json")""")
+    script should include("""fig.write_html("distinct_1.html")""")
+    script should include("""fig.write_html("distinct_2.html")""")
+  }
+
   /** The translator's own contract when it meets an operator it cannot render:
     * a comment rather than a silently wrong line.
     */
