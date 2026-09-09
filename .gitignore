@@ -142,3 +142,6 @@ agent-service/CLAUDE.md
 
 # Ignoring local Claude Code artifacts (settings, worktrees, scratch)
 .claude/
+
+# Ignoring the JUnit report a local frontend test run writes
+frontend/junit.xml
