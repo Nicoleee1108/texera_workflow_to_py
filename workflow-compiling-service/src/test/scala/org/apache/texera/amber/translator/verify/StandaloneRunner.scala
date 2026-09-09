@@ -249,11 +249,9 @@ object StandaloneRunner extends LazyLogging {
     // strings, which the runtime path delivers as datetime64 — a divergence for
     // any operator that renders or computes on them. The fixture's schema
     // sidecar says which columns those are, so cast exactly those back.
-    // dtype: pd.read_json infers a column of numeric-looking strings as a
-    // number, so a STRING column holding "001" loads as 1 and one holding only
-    // nulls loads as NaN rather than None. The runtime path calls str() on the
-    // cell and leaves a null alone, so the two disagree about the operator's
-    // INPUT. Naming the sidecar's STRING columns as object pins them.
+    // read_json also infers a column of numeric-looking strings as a number, so
+    // a STRING column holding "001" arrives as 1, and one holding only nulls as
+    // NaN rather than None. The sidecar's STRING columns are pinned to object.
     inputs.toSeq.sortBy(_._1).foreach {
       case (n, path) =>
         val dtype = stringColumns(path) match {
@@ -282,11 +280,9 @@ object StandaloneRunner extends LazyLogging {
         inputs.keys.toSeq.sorted.map(n => s"in${n}df").mkString("inAlldf = [", ", ", "]\n")
       )
     }
-    // The file placeholders, bound for the same reason. The translator hands
-    // each chart in a plan a name of its own, since they all write into one
-    // directory; a script this runner builds holds a single operator, so the
-    // plain names are already unambiguous and the comparison knows where to
-    // look.
+    // The file placeholders, bound the same way. A script this runner builds
+    // holds one operator, so the plain names are unambiguous and the comparison
+    // knows where to look.
     sb.append("outputHtml = \"output.html\"\n")
     sb.append("outputJson = \"output.json\"\n")
     sb.append("\n")
@@ -349,9 +345,8 @@ object StandaloneRunner extends LazyLogging {
   // Python string literal, single-quoted with backslashes escaped. We
   // deliberately don't use repr() in Scala (no such thing) — JSON.toString
   // would also work but introduces double-quote escaping when the path has
-  // spaces. Control characters are escaped too: the fixture carries a column
-  // whose name holds a literal newline, and a raw one here would end the
-  // literal mid-line and leave the script unparseable.
+  // spaces. Control characters are escaped too: a fixture column name can hold
+  // a literal newline, which raw would end the literal and break the script.
   private def py(s: String): String =
     s.map {
       case '\\'                => "\\\\"
