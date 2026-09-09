@@ -96,8 +96,11 @@ class TranslatedPlanRunSpec extends AnyFlatSpec with Matchers {
     (dir, stdout)
   }
 
-  private def htmlFiles(dir: Path): Seq[String] =
-    Option(dir.toFile.list()).toSeq.flatten.filter(_.endsWith(".html")).sorted
+  // The files the plan wrote, script and input aside.
+  private def written(dir: Path): Seq[String] =
+    Option(dir.toFile.list()).toSeq.flatten
+      .filterNot(name => name == CsvName || name == "script.py")
+      .sorted
 
   /** The substitution rewrites the variable a fragment reads with, not the
     * column name it asks that variable for. A fragment tested on its own never
@@ -133,7 +136,12 @@ class TranslatedPlanRunSpec extends AnyFlatSpec with Matchers {
       source :: charts,
       charts.map(chart => link(source, chart))
     )
-    htmlFiles(dir) should have length 2
+    written(dir) shouldBe Seq(
+      "pie_chart_1.html",
+      "pie_chart_1.json",
+      "pie_chart_2.html",
+      "pie_chart_2.json"
+    )
   }
 
   /** A chart with nothing to draw writes its reason and stops there. Ending the
@@ -157,6 +165,7 @@ class TranslatedPlanRunSpec extends AnyFlatSpec with Matchers {
       List(link(source, contour), link(source, distinct))
     )
     stdout should include("[Distinct]")
-    htmlFiles(dir) should have length 1
+    // The error page and nothing else: no chart was drawn, so no JSON figure.
+    written(dir) shouldBe Seq("contour_plot_1.html")
   }
 }
