@@ -28,25 +28,15 @@ import java.nio.file.Files
   * frame it was handed.
   *
   * The translator names a variable per output PORT, not per reader, so two
-  * operators drawn from one upstream are handed the same name. An operator that
-  * drops rows into that name, or assigns a column through it, changes what the
-  * other branch goes on to read: a bar chart that drops its own nulls would
-  * leave a pie chart beside it drawing a table it never received.
+  * operators drawn from one upstream are handed the same name, and one that
+  * writes to it changes what the other goes on to read.
   *
-  * Both spellings of the mistake matter, and one of them does not look like a
-  * mistake. `inplace=True` mutates the frame outright. `in1df = in1df.dropna()`
-  * reads like a local rebinding, but the operator bodies are concatenated at
-  * module scope, so the name it rebinds is the shared one.
+  * `in1df = in1df.dropna()` counts as writing to it: the operator bodies are
+  * concatenated at module scope, so the name it rebinds is the shared one.
   *
-  * A single-branch workflow never notices either, which is why this reads the
-  * code rather than waiting for a run to disagree. Every fixture the runner
-  * builds has one reader, so a comparison of the two paths agrees while the
-  * frame is being altered underneath a branch that the fixture does not have.
-  *
-  * What reading the code cannot see is a mutation through another name: bind
-  * the frame to something else first and the writes below are invisible here.
-  * No operator does that today, and an operator that starts to would be saying
-  * something a reader has to work out anyway.
+  * Read rather than run, because every fixture the runner builds has a single
+  * reader. A comparison of the two paths agrees while the frame is being
+  * altered underneath a branch the fixture does not have.
   */
 object StandaloneInputCheck {
 
