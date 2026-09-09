@@ -22,8 +22,16 @@ package org.apache.texera.amber.translator.verify
 import org.apache.texera.amber.core.workflow.PortIdentity
 import org.apache.texera.amber.operator.LogicalOp
 import org.apache.texera.amber.operator.distinct.DistinctOpDesc
+import org.apache.texera.amber.operator.filter.{
+  ComparisonType,
+  FilterPredicate,
+  SpecializedFilterOpDesc
+}
+import org.apache.texera.amber.operator.limit.LimitOpDesc
 import org.apache.texera.amber.operator.projection.{AttributeUnit, ProjectionOpDesc}
+import org.apache.texera.amber.operator.sort.{SortCriteriaUnit, SortOpDesc, SortPreference}
 import org.apache.texera.amber.operator.source.scan.csv.CSVScanSourceOpDesc
+import org.apache.texera.amber.operator.union.UnionOpDesc
 import org.apache.texera.amber.operator.visualization.contourPlot.{
   ContourPlotColoringFunction,
   ContourPlotOpDesc
@@ -101,6 +109,56 @@ class TranslatedPlanRunSpec extends AnyFlatSpec with Matchers {
     Option(dir.toFile.list()).toSeq.flatten
       .filterNot(name => name == CsvName || name == "script.py")
       .sorted
+
+  /** Four hops, so every variable the translator assigns is read by the next
+    * fragment rather than by the print at the end. A two-operator plan cannot
+    * show a chain threaded wrong, since df1 is the only name to get right.
+    */
+  it should "carry a frame through a chain of operators" in {
+    val source = csvSource("source")
+    val filter = new SpecializedFilterOpDesc
+    filter.setOperatorId("filter")
+    filter.predicates = List(new FilterPredicate("amount", ComparisonType.GREATER_THAN, "1"))
+    val sort = new SortOpDesc
+    sort.setOperatorId("sort")
+    val criterion = new SortCriteriaUnit
+    criterion.attributeName = "amount"
+    criterion.sortPreference = SortPreference.DESC
+    sort.attributes = List(criterion)
+    val limit = new LimitOpDesc
+    limit.setOperatorId("limit")
+    limit.limit = 2
+    val projection = new ProjectionOpDesc
+    projection.setOperatorId("projection")
+    projection.attributes ++= List(new AttributeUnit("label", "label"))
+
+    val chain = List(source, filter, sort, limit, projection)
+    val (_, stdout) = run(
+      "label,amount\nant,3\nbee,1\ncat,5\ndog,2\n",
+      chain,
+      chain.sliding(2).map { case Seq(from, to) => link(from, to) }.toList
+    )
+    // bee is filtered out, dog falls outside the limit, and cat sorts above ant.
+    stdout should not include "bee"
+    stdout should not include "dog"
+    stdout.indexOf("cat") should be < stdout.indexOf("ant")
+  }
+
+  /** A variadic port is the one placeholder a fragment cannot name, so the list
+    * the translator writes in its place is only exercised by a real plan.
+    */
+  it should "hand a variadic port the frames its upstreams produced" in {
+    val sources = List("left", "right").map(csvSource)
+    val union = new UnionOpDesc
+    union.setOperatorId("union")
+    val (_, stdout) = run(
+      "label,amount\nant,3\nbee,1\n",
+      sources :+ union,
+      sources.map(source => link(source, union))
+    )
+    // Both upstreams read the same file, so each row arrives twice.
+    stdout.sliding("ant".length).count(_ == "ant") shouldBe 2
+  }
 
   /** The substitution rewrites the variable a fragment reads with, not the
     * column name it asks that variable for. A fragment tested on its own never
