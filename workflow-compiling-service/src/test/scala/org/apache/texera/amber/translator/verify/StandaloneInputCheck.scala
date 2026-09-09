@@ -24,19 +24,15 @@ import org.apache.texera.amber.operator.source.SourceOperatorDescriptor
 import java.nio.file.Files
 
 /**
-  * Reads every operator's generated code and reports one that writes to the
-  * frame it was handed.
+  * Reports an operator whose generated code writes to the frame it was handed.
   *
-  * The translator names a variable per output PORT, not per reader, so two
-  * operators drawn from one upstream are handed the same name, and one that
-  * writes to it changes what the other goes on to read.
+  * The translator names a variable per output PORT, so two operators drawn from
+  * one upstream share it, and a write changes what the other reads. Rebinding
+  * counts: the bodies are concatenated at module scope, so
+  * `in1df = in1df.dropna()` rebinds the shared name.
   *
-  * `in1df = in1df.dropna()` counts as writing to it: the operator bodies are
-  * concatenated at module scope, so the name it rebinds is the shared one.
-  *
-  * Read rather than run, because every fixture the runner builds has a single
-  * reader. A comparison of the two paths agrees while the frame is being
-  * altered underneath a branch the fixture does not have.
+  * Read rather than run, because every fixture has a single reader, so both
+  * paths agree while the frame is altered under a branch that is not there.
   */
 object StandaloneInputCheck {
 
