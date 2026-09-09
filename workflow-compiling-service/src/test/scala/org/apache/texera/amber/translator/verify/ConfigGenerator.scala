@@ -49,24 +49,19 @@ import scala.jdk.CollectionConverters._
 import scala.util.Try
 
 /**
-  * Produces a valid configuration for an operator automatically, from the
-  * metadata the operator already carries — field defaults, enums, and the
-  * `@AutofillAttributeName` annotation family (which marks a field as "a column
-  * name from input port N"). This is the baseline layer of the combined
-  * config-generation plan: every registered operator gets a runnable config with
-  * no per-operator handler.
+  * Produces a valid configuration for an operator from the metadata it already
+  * carries: field defaults, enums, and the `@AutofillAttributeName` family, which
+  * marks a field as a column name from a given input port. Every registered
+  * operator gets a runnable config without a handler written for it.
   *
-  * We only need a *valid* config, not a *meaningful* one — both verification
-  * paths get the identical OpDesc and are compared to each other, so a
-  * degenerate-but-valid config still tests translation fidelity. Free-form value
-  * fields are filled with a canonical value (see [[CanonicalString]]) that the
-  * synthetic dataset is built to contain, so the operator actually does
+  * Valid rather than meaningful is enough, since both paths get the identical
+  * OpDesc and are compared to each other. Free-form fields take a canonical value
+  * (see [[CanonicalString]]) the table is built to contain, so the operator does
   * something rather than matching nothing.
   *
   * The assembled JSON is read back through the same `objectMapper` Texera uses
-  * everywhere, so enums (`@JsonValue`), `Option` and `@JsonCreator` nested
-  * objects are handled by the deserialization the product already relies on
-  * rather than by reflection written here.
+  * everywhere, so enums, `Option` and `@JsonCreator` nested objects are handled
+  * by the deserialization the product relies on rather than by reflection here.
   */
 object ConfigGenerator {
 
@@ -1094,23 +1089,20 @@ object ConfigGenerator {
   /** Every site paired with the fields that move with it, in the two ways a schema
     * says one field's content depends on another's.
     *
-    * The first is `valueRules`: what such a field may hold is decided by the sibling
-    * the rule reads. The pairing is derived from the rules themselves rather than
-    * named here, so an operator stating a rule over some other sibling gets the same
-    * treatment. The paired field is REFILLED rather than left as it was, since what
-    * sits there belongs to the PREVIOUS choice, and it is refilled the way any field
-    * is: by the rule where the rule names a value, and by the field's own type where
-    * it does not. A branch naming nothing is the operator saying it knows of no value
-    * worth offering, which is not the same as there being none, and a choice this
-    * generator cannot fill is a choice that has to fail loudly and be withheld by name
-    * in [[TransformVerificationRunner.variantsNotRun]] rather than disappear here.
+    * The first is `valueRules`. The pairing is derived from the rules themselves
+    * rather than named here, so an operator stating a rule over some other sibling
+    * gets the same treatment. The paired field is REFILLED, since what sits there
+    * belongs to the PREVIOUS choice: by the rule where the rule names a value, and
+    * by the field's own type where it does not. A branch naming nothing is the
+    * operator saying it knows of no value worth offering, so a choice this generator
+    * cannot fill has to fail loudly and be withheld by name in
+    * [[TransformVerificationRunner.variantsNotRun]] rather than disappear here.
     *
-    * The second is a conditional `required`, which is how an object says that exactly
-    * one of two fields applies and therefore that neither can be marked required on
-    * its own. A hyperparameter row is written that way: `value` is required while its
-    * switch is off and `attribute` once it is on. The base pass filled the one the
-    * base config needs, so flipping the switch has to fill the other, which until then
-    * was rightly left empty.
+    * The second is a conditional `required`, how an object says that exactly one of
+    * two fields applies and neither can be required on its own. A hyperparameter row
+    * is written that way: `value` while its switch is off, `attribute` once it is on.
+    * The base pass filled the one the base config needs, so flipping the switch has
+    * to fill the other.
     */
   private def withCompanions(
       clazz: Class[_],

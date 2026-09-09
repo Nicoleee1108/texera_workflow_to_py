@@ -29,10 +29,8 @@ import java.nio.file.Path
   * written for a single operator.
   *
   * Which table an operator runs on is its own axis, separate from who writes its
-  * config. [[CanonicalFixture]] is the wide mixed-type table every operator takes;
-  * the sklearn families take [[ProjectedFixture]] views of it, since
-  * `X = table.drop(target)` feeds every remaining column to `fit`, which a string
-  * or timestamp column ends.
+  * config. [[CanonicalFixture]] is the wide mixed-type table every operator
+  * takes; the sklearn families take [[ProjectedFixture]] views of it.
   */
 trait SharedFixture {
 
@@ -124,16 +122,14 @@ final case class ProjectedFixture(
     b.build()
   }.toVector
 
-  /** Every port gets the whole table. An estimator pair trains on port 0 and
-    * tests on port 1, and the point of the pair is the two ports rather than two
-    * datasets: what the comparison sees is the fitted model, which port 1 has no
-    * hand in, so giving the ports different rows buys nothing.
+  /** Every port gets the whole table. What the comparison sees is the fitted
+    * model, which port 1 has no hand in, so giving the ports different rows buys
+    * nothing.
     *
-    * The whole table rather than the source's ten-row window, because the
-    * estimators that cross-validate pass no fold count and so take sklearn's
-    * default of five: the window would leave the smaller class at four, and one
-    * fold holding none of a class is a fold that asks nothing (sklearn warns and
-    * splits anyway rather than refusing).
+    * The whole table rather than the source's ten-row window, because a
+    * cross-validating estimator passes no fold count and takes sklearn's default
+    * of five: the window would leave the smaller class at four, and a fold
+    * holding none of a class asks nothing.
     */
   override def rowsFor(port: Int): Seq[Tuple] = rows
 }

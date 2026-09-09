@@ -79,7 +79,7 @@ object CanonicalFixture extends SharedFixture {
     new Attribute(
       "a\"b\\c_simplex_a",
       AttributeType.DOUBLE
-    ), // >0 and simplex_a+simplex_b+simplex_c == 100 (ternary-contour)
+    ), // >0, and the three sum to 100 in every row (ternary-contour)
     new Attribute("a\"b\\c_simplex_b", AttributeType.DOUBLE), // >0 simplex component summing to 100
     new Attribute("a\"b\\c_simplex_c", AttributeType.DOUBLE), // >0 simplex component summing to 100
     // ── text + iris-numeric columns for Hugging Face model operators ──
@@ -110,14 +110,14 @@ object CanonicalFixture extends SharedFixture {
     new Attribute(
       "a\"b\\c_species_pred",
       AttributeType.INTEGER
-    ), // a predictor's guess at `species`: the same 0/1 domain, wrong on a few rows.
+    ), // a predictor's guess at the label: the same 0/1 domain, wrong on a few rows.
     // Scoring compares a PAIR of columns, and no single label column supplies one.
     // Last so the first-unused fallback reaches it only after every other column
-    new Attribute("species_name", AttributeType.STRING), // `species` spelled out
+    new Attribute("species_name", AttributeType.STRING), // the label spelled out
     new Attribute(
       "species_name_pred",
       AttributeType.STRING
-    ) // `species_pred` spelled out. A scorer takes a string label as readily as a
+    ) // the prediction spelled out. A scorer takes a string label as readily as a
     // numeric one and names the class after it rather than after its position, so
     // the pair exists a second time in text
   )
@@ -128,9 +128,9 @@ object CanonicalFixture extends SharedFixture {
   //   src/test/resources/verify/canonical_fixture.json   (15 rows, ids 1..15)
   // Open it to see the exact table; edit it to change the data. The
   // CanonicalFixtureSpec invariants guard every semantic constraint (valid OHLC
-  // block, pvalue ∈ (0,1), ternary parts summing to 100, finish_ts > start_ts,
+  // block, pvalue ∈ (0,1), ternary parts summing to 100, each finish after its start,
   // etc.), so a hand-edit that breaks one fails the build. `schema` above stays
-  // authoritative for column types: JSON has no TIMESTAMP, so start_ts/finish_ts
+  // authoritative for column types: JSON has no TIMESTAMP, so the timestamps
   // are stored as JDBC strings ("2024-01-01 00:00:00.0") and coerced back here.
   private val fixtureResource = "/verify/canonical_fixture.json"
 
@@ -185,7 +185,7 @@ object CanonicalFixture extends SharedFixture {
   override val keepFilled: Set[String] = Set("id")
 
   /** This table as the sklearn families read it: the two petal columns and the
-    * `species` label, and nothing else, because `X = table.drop(target, axis=1)`
+    * species label, and nothing else, because `X = table.drop(target, axis=1)`
     * hands `fit` every column that is not the target. The two features separate
     * the classes exactly, so an estimator fits them without a tie to break.
     */
@@ -195,16 +195,6 @@ object CanonicalFixture extends SharedFixture {
     keepFilled = Set("a\"b\\c_species")
   )
 
-  /** [[sklearnNumeric]] plus a column an estimator cannot fit. The families that
-    * narrow `X` to the fittable columns drop nothing on the numeric table, so the
-    * narrowing runs there with nothing to do. Here it has a column to drop, and
-    * the two paths narrow in different places: the operator once, ahead of the
-    * port branch; the standalone script once per port. Each has to drop it on its
-    * own.
-    *
-    * The text column carries no signal about the label, so the fit is the one the
-    * two petal columns give on their own.
-    */
   /** This table minus `score`. An operator whose output column is named `score`
     * by default cannot run here otherwise: it would create a column the input
     * already holds, and the schema refuses the duplicate before the operator
@@ -219,8 +209,8 @@ object CanonicalFixture extends SharedFixture {
   )
 
   /** This table as a scorer reads it when the labels are text: the same pair as
-    * `species` / `species_pred`, spelled out, and nothing else. The scenario that
-    * takes it names the two columns itself, since the operator's `@SampleColumn`s
+    * the numeric label and its prediction, spelled out, and nothing else. The scenario
+    * that takes it names the two columns itself, since the operator's `@SampleColumn`s
     * name the numeric pair this projection does not carry.
     */
   val scorerTextLabels: SharedFixture = ProjectedFixture(
@@ -229,6 +219,12 @@ object CanonicalFixture extends SharedFixture {
     keepFilled = Set.empty
   )
 
+  /** [[sklearnNumeric]] plus a column an estimator cannot fit, so the narrowing to
+    * the fittable columns has something to do. The two paths narrow in different
+    * places, the operator once ahead of the port branch and the standalone script
+    * once per port, so each has to drop it on its own. The text carries no signal
+    * about the label, so the fit is the one the two petal columns already give.
+    */
   val sklearnNumericWithText: SharedFixture = ProjectedFixture(
     this,
     Seq("petal_length", "petal_width", "short_text", "a\"b\\c_species"),
@@ -238,7 +234,7 @@ object CanonicalFixture extends SharedFixture {
   /** This table as the `countVectorizer=true` path reads it: one text column and
     * the same label. `short_text` leads because the model probe feeds a text
     * pipeline the frame's first column as a Series. Every row carrying a given
-    * sentence carries the same `species` (an invariant of the table), so the
+    * sentence carries the same label (an invariant of the table), so the
     * vectorized classes separate exactly, as the numeric pair does.
     */
   val sklearnText: SharedFixture = ProjectedFixture(

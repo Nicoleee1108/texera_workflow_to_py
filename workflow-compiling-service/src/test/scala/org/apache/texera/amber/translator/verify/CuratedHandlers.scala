@@ -93,8 +93,7 @@ trait TransformHandler {
 /**
   * The curated override tier of the config/fixture resolution chain: an
   * operator listed here is verified with its hand-written fixture instead of
-  * the auto-generated one. This is also the seam where Xuan's curated
-  * operator-field-values JSON plugs in later, as a second curated source.
+  * the auto-generated one.
   */
 object CuratedHandlers {
 
@@ -201,9 +200,6 @@ object CuratedHandlers {
   * corners. `id > 8 OR name == "eve"` exercises numeric comparison, string
   * equality (the JSON predicate `value` is always a string) and OR-combination
   * in one run, and keeps 5 of port 0's 10 rows — a proper subset either way.
-  *
-  * Both JVM `SpecializedFilterOpExec` and pandas boolean indexing preserve
-  * input row order, so positional comparator equality holds.
   */
 object SpecializedFilterTransformHandler extends TransformHandler {
 
@@ -221,10 +217,10 @@ object SpecializedFilterTransformHandler extends TransformHandler {
 }
 
 /** Handler for `DistinctOpDesc`. The canonical auto-fixture is all-distinct
-  * (uniq_name is globally unique by invariant), so it never exercises dedup.
+  * (the name column is unique by invariant), so it never exercises dedup.
   * This 5-row table repeats two rows so both paths must actually drop
-  * duplicates; survivors keep first-occurrence order (JVM LinkedHashSet ==
-  * pandas drop_duplicates keep="first"), so the positional comparator holds.
+  * duplicates, and both keep the first occurrence: JVM LinkedHashSet and pandas
+  * `drop_duplicates(keep="first")` agree on which of a pair survives.
   */
 /**
   * Curated CONFIG for [[ProjectionOpDesc]] over the shared table. Its `attributes`
@@ -268,23 +264,17 @@ object DistinctTransformHandler extends TransformHandler {
 
 /**
   * Curated handler for [[RegexOpDesc]]. The auto tier only ever feeds it the
-  * trivial pattern `"1"` against the first column, which never exercises real
-  * regex semantics. This handler pins genuine patterns so the JVM↔Python engine
-  * parity is actually tested:
+  * pattern `"1"`, which asks nothing of either regex engine. Three real ones do:
   *
-  *   - Primary fixture: `[a-z]+` over a mixed-case `text` column. The runner
-  *     enum-sweeps the Boolean `caseInsensitive`, so BOTH branches run against
-  *     the same data. The two branches select DIFFERENT row sets (case-sensitive
-  *     keeps only rows with a lowercase letter; case-insensitive also keeps the
-  *     all-caps rows), proving the flag actually flows through to both paths.
-  *   - `extraScenarios`: `\d+` (a backslash class — verifies the escape survives
-  *     `toPyDoubleQuotedLiteral` into Python's engine) and `\.` (an escaped
-  *     metachar — an escaping bug would turn it into "match any char" and change
-  *     the result, so this pins literal-vs-metachar handling).
+  *   - `[a-z]+` over a mixed-case column, with `caseInsensitive` swept. The two
+  *     branches keep DIFFERENT rows, so the flag is shown to reach both paths.
+  *   - `\d+`, a backslash class, which checks the escape survives
+  *     `toPyDoubleQuotedLiteral` into Python's engine.
+  *   - `\.`, an escaped metachar: an escaping bug turns it into "match any char"
+  *     and changes the answer.
   *
-  * All fixture data is ASCII, where Java `\d` / `[a-z]` / CASE_INSENSITIVE and
-  * Python's `re` agree exactly; each pattern yields a proper subset (never
-  * all/none) so the comparison is meaningful.
+  * The data is ASCII, where Java and Python's `re` agree exactly, and each
+  * pattern keeps a proper subset rather than all or none of the rows.
   */
 object RegexTransformHandler extends TransformHandler {
   override val opDescClass: Class[_ <: LogicalOp] = classOf[RegexOpDesc]
@@ -410,29 +400,17 @@ object HashJoinTransformHandler extends TransformHandler {
 }
 
 /**
-  * Handler for `TypeCastingOpDesc`. The auto tier points `attribute` at the
-  * canonical fixture's first column (`id`, INTEGER) and then sweeps `resultType`
-  * across ALL `AttributeType` values — but `TypeCastingUnit`'s attributeTypeRules
-  * only permit certain source types per target (e.g. `timestamp` accepts only
-  * string/long), and the native `TypeCastingOpExec` throws on an illegal cast
-  * (INTEGER → Timestamp). So the auto variant `resultType=timestamp` crashes
-  * Path A before any comparison.
+  * Handler for `TypeCastingOpDesc`. A blind sweep of `resultType` crashes Path A,
+  * for the reason its `enumSweep` row in
+  * [[TransformVerificationRunner.variantsNotRun]] gives. Each unit below instead
+  * pairs a target type with a source column that type accepts, holding a value
+  * that round-trips identically through JVM `AttributeTypeUtils` and through the
+  * generated pandas.
   *
-  * This fixture gives each cast a type-compatible source column and a value that
-  * round-trips identically on both paths (JVM `AttributeTypeUtils` vs the
-  * generated pandas), covering the value-comparable branches of
-  * `generateStandaloneCode`'s `resultType` match: STRING, INTEGER, LONG, DOUBLE,
-  * BOOLEAN. The op has an `enumSweep` row in
-  * [[TransformVerificationRunner.variantsNotRun]], suppressing the blind
-  * one-enum-at-a-time sweep that would re-pair each fixed column with every target
-  * type; the units below already exercise each branch. Map op: both paths keep
-  * input row order, so strict positional equality holds.
-  *
-  * TIMESTAMP is intentionally omitted: the two runtimes serialize a Timestamp
-  * differently to JSONL (native emits an ISO string `"2024-01-01 09:00:00.0"`,
-  * pandas emits epoch millis `1704099600000`), so the dataframe comparator flags
-  * a representation mismatch even though the instant is identical — a harness-wide
-  * timestamp-serialization gap, not a TypeCasting translation defect.
+  * TIMESTAMP is left out: the two runtimes serialize one differently to JSONL,
+  * native as an ISO string and pandas as epoch millis, so the comparator flags a
+  * representation mismatch for an identical instant. That is a harness-wide gap
+  * rather than a TypeCasting defect.
   */
 object TypeCastingTransformHandler extends TransformHandler {
   override val opDescClass: Class[_ <: LogicalOp] = classOf[TypeCastingOpDesc]
@@ -493,15 +471,12 @@ object TypeCastingTransformHandler extends TransformHandler {
   * love/day); row 3 has neither; row 4's "lovely"/"today" are different tokens,
   * so the shared word-boundary rule drops it. 4 rows → 2 kept.
   *
-  * The rows are intentionally punctuation-free. The `isCaseSensitive` enum is
-  * swept (true and false), and the case-sensitive path uses `CaseSensitiveAnalyzer`
-  * (a `WhitespaceTokenizer` that leaves punctuation attached, e.g. "perfect."),
-  * which diverges from the standalone regex's `\b`-boundary matching on any
-  * punctuated word — and the standalone does NOT honor case at all. Clean
-  * whitespace-delimited words keep both tokenizers (and both case modes) in
-  * agreement; this is why the canonical fixture's punctuated `short_text` column
-  * cannot be reused here. Lucene phrase/boolean/wildcard syntax is likewise
-  * avoided — the regex approximation cannot reproduce it.
+  * The rows are intentionally punctuation-free. Sweeping `isCaseSensitive` puts
+  * the JVM's `CaseSensitiveAnalyzer` in play, a `WhitespaceTokenizer` that leaves
+  * punctuation attached to the word ("perfect."), while the standalone regex
+  * matches on `\b` boundaries and honours no case at all. Clean words keep the
+  * two in agreement, which is why the canonical table's punctuated `short_text`
+  * cannot be reused here, and why no Lucene phrase or wildcard syntax appears.
   */
 object KeywordSearchTransformHandler extends TransformHandler {
   override val opDescClass: Class[_ <: LogicalOp] = classOf[KeywordSearchOpDesc]
@@ -597,15 +572,11 @@ object ImageVisualizerVisualizationHandler extends TransformHandler {
   * paths.
   */
 /** Aggregate fixture exercising every aggregation function in one op, including
-  * COUNT(*) (empty attribute). Auto-config cannot build it: `attribute` is
+  * COUNT(*) with its empty attribute. Auto-config cannot build it: `attribute` is
   * optional, required only for the functions other than count, so the generator
-  * leaves it unset and any other function then reaches the executor with no
-  * column to read. This pins valid (function, column) pairs. Enum-sweep-exempt
-  * (see [[TransformVerificationRunner.variantsNotRun]]): the sweep flips each
-  * element's function in isolation and would re-pair, e.g., concat with a numeric
-  * column; the fixture already covers each function with a type-compatible column.
-  * Aggregate inherits the unordered `orderSensitive` default, so
-  * the comparator lex-sorts rows before comparing.
+  * leaves it unset and any other function reaches the executor with no column to
+  * read. This pins a valid (function, column) pair for each. The matching
+  * `enumSweep` withholding is in [[TransformVerificationRunner.variantsNotRun]].
   */
 object AggregateTransformHandler extends TransformHandler {
   override val opDescClass: Class[_ <: LogicalOp] = classOf[AggregateOpDesc]

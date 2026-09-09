@@ -165,7 +165,7 @@ class CanonicalFixtureSpec extends AnyFlatSpec with Matchers {
     }
   }
 
-  // The sklearn families fit `species` against the petal columns, so the table
+  // The sklearn families fit the label against the petal columns, so the table
   // has to hold up as training data. The estimators that cross-validate pass no
   // fold count and so take sklearn's default of five, and a class of fewer than
   // five rows leaves a fold holding none of it — no error, just a warning and a
@@ -182,7 +182,7 @@ class CanonicalFixtureSpec extends AnyFlatSpec with Matchers {
     }
   }
 
-  // `species_pred` exists so the scorer has a real pair to compare. All four
+  // The prediction column exists so the scorer has a real pair to compare. All four
   // cells of the confusion matrix have to be occupied: a perfect prediction
   // scores every metric at 1.0, and one that never calls a class leaves that
   // class's precision undefined — either way the metrics stop telling the two
