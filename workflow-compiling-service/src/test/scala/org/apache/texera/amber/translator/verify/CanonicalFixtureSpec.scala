@@ -87,15 +87,15 @@ class CanonicalFixtureSpec extends AnyFlatSpec with Matchers {
   }
 
   it should "expose uniq_name as globally distinct so name-keyed ops have no duplicates" in {
-    val names = CanonicalFixture.port0Rows.map(_.getField[String]("uniq_name"))
+    val names = CanonicalFixture.port0Rows.map(_.getField[String]("a\"b'c\\d\ne_uniq_name"))
     names.distinct.size shouldBe names.size
   }
 
   it should "expose a valid ternary simplex (positive parts summing to 100)" in {
     CanonicalFixture.port0Rows.foreach { t =>
-      val a = t.getField[java.lang.Double]("simplex_a").doubleValue
-      val b = t.getField[java.lang.Double]("simplex_b").doubleValue
-      val c = t.getField[java.lang.Double]("simplex_c").doubleValue
+      val a = t.getField[java.lang.Double]("a\"b\\c_simplex_a").doubleValue
+      val b = t.getField[java.lang.Double]("a\"b\\c_simplex_b").doubleValue
+      val c = t.getField[java.lang.Double]("a\"b\\c_simplex_c").doubleValue
       a should be > 0.0
       b should be > 0.0
       c should be > 0.0
@@ -127,7 +127,7 @@ class CanonicalFixtureSpec extends AnyFlatSpec with Matchers {
   it should "expose finish_ts strictly after start_ts (non-degenerate Gantt bar)" in {
     CanonicalFixture.port0Rows.foreach { t =>
       val s = t.getField[java.sql.Timestamp]("start_ts")
-      val f = t.getField[java.sql.Timestamp]("finish_ts")
+      val f = t.getField[java.sql.Timestamp]("a\"b\\c_finish_ts")
       f.after(s) shouldBe true
     }
   }
@@ -145,9 +145,10 @@ class CanonicalFixtureSpec extends AnyFlatSpec with Matchers {
     read.getField[java.sql.Timestamp]("start_ts") shouldBe orig.getField[java.sql.Timestamp](
       "start_ts"
     )
-    read.getField[java.sql.Timestamp]("finish_ts") shouldBe orig.getField[java.sql.Timestamp](
-      "finish_ts"
-    )
+    read.getField[java.sql.Timestamp]("a\"b\\c_finish_ts") shouldBe orig
+      .getField[java.sql.Timestamp](
+        "a\"b\\c_finish_ts"
+      )
   }
 
   it should "expose non-empty short_text sentences for text-classification ops" in {
@@ -172,12 +173,12 @@ class CanonicalFixtureSpec extends AnyFlatSpec with Matchers {
   // half: it leaves the fit breaking ties, which is where two paths drift apart.
   it should "expose species as a petal-separable label with enough members to fold on" in {
     val rows = CanonicalFixture.allRows
-    val byClass = rows.groupBy(_.getField[java.lang.Integer]("species").intValue)
+    val byClass = rows.groupBy(_.getField[java.lang.Integer]("a\"b\\c_species").intValue)
     byClass.keySet shouldBe Set(0, 1)
     byClass.values.foreach(_.size should be >= 5)
     rows.foreach { t =>
       val large = t.getField[java.lang.Double]("petal_length").doubleValue >= 3.9
-      t.getField[java.lang.Integer]("species").intValue shouldBe (if (large) 1 else 0)
+      t.getField[java.lang.Integer]("a\"b\\c_species").intValue shouldBe (if (large) 1 else 0)
     }
   }
 
@@ -190,8 +191,8 @@ class CanonicalFixtureSpec extends AnyFlatSpec with Matchers {
     val cells = CanonicalFixture.allRows
       .map(t =>
         (
-          t.getField[java.lang.Integer]("species").intValue,
-          t.getField[java.lang.Integer]("species_pred").intValue
+          t.getField[java.lang.Integer]("a\"b\\c_species").intValue,
+          t.getField[java.lang.Integer]("a\"b\\c_species_pred").intValue
         )
       )
       .distinct
@@ -206,10 +207,10 @@ class CanonicalFixtureSpec extends AnyFlatSpec with Matchers {
     val name = Map(0 -> "setosa", 1 -> "versicolor")
     CanonicalFixture.allRows.foreach { t =>
       t.getField[String]("species_name") shouldBe name(
-        t.getField[java.lang.Integer]("species").intValue
+        t.getField[java.lang.Integer]("a\"b\\c_species").intValue
       )
       t.getField[String]("species_name_pred") shouldBe name(
-        t.getField[java.lang.Integer]("species_pred").intValue
+        t.getField[java.lang.Integer]("a\"b\\c_species_pred").intValue
       )
     }
   }
@@ -222,7 +223,7 @@ class CanonicalFixtureSpec extends AnyFlatSpec with Matchers {
       .foreach {
         case (sentence, rows) =>
           withClue(s"$sentence: ") {
-            rows.map(_.getField[java.lang.Integer]("species")).distinct.size shouldBe 1
+            rows.map(_.getField[java.lang.Integer]("a\"b\\c_species")).distinct.size shouldBe 1
           }
       }
   }

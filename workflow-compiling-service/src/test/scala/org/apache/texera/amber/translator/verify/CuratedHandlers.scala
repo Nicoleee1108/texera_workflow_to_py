@@ -299,14 +299,14 @@ object RegexTransformHandler extends TransformHandler {
 
   // Rows chosen so `[a-z]+` differs by case flag: "ABC"/"XY9" have no lowercase
   // (dropped when case-sensitive) but are all-letter (kept when insensitive).
-  private val textColumn = Seq(("text", AttributeType.STRING))
+  private val textColumn = Seq(("a\"b\\c_text", AttributeType.STRING))
   private val caseRows: Seq[Seq[Any]] =
     Seq(Seq[Any]("abc"), Seq[Any]("ABC"), Seq[Any]("123"), Seq[Any]("a1B"), Seq[Any]("XY9"))
 
   override def fixture(testRoot: Path): (LogicalOp, Map[PortIdentity, Path]) = {
     val inputPath =
       CuratedHandlers.writeFixture(testRoot.resolve("input_port_0.jsonl"), textColumn, caseRows)
-    (regexOp("text", "[a-z]+", caseInsensitive = false), Map(PortIdentity(0) -> inputPath))
+    (regexOp("a\"b\\c_text", "[a-z]+", caseInsensitive = false), Map(PortIdentity(0) -> inputPath))
   }
 
   override def extraScenarios(
@@ -332,12 +332,12 @@ object RegexTransformHandler extends TransformHandler {
     Seq(
       (
         "regex=\\d+",
-        regexOp("text", "\\d+", caseInsensitive = false),
+        regexOp("a\"b\\c_text", "\\d+", caseInsensitive = false),
         Map(PortIdentity(0) -> digitInput)
       ),
       (
         "regex=\\.",
-        regexOp("text", "\\.", caseInsensitive = false),
+        regexOp("a\"b\\c_text", "\\.", caseInsensitive = false),
         Map(PortIdentity(0) -> dotInput)
       )
     )
@@ -356,27 +356,27 @@ object HashJoinTransformHandler extends TransformHandler {
     * the run would be asking about an inner join that finds nothing rather than
     * about a null. The payload columns carry no arrangement and take the holes.
     */
-  override def nullsKeepFilled: Option[Set[String]] = Some(Set("id"))
+  override def nullsKeepFilled: Option[Set[String]] = Some(Set("a\"b\\c_id"))
 
   override def fixture(testRoot: Path): (LogicalOp, Map[PortIdentity, Path]) = {
     val buildSchema = new Schema(
-      new Attribute("id", AttributeType.INTEGER),
+      new Attribute("a\"b\\c_id", AttributeType.INTEGER),
       new Attribute("name", AttributeType.STRING)
     )
     val probeSchema = new Schema(
-      new Attribute("id", AttributeType.INTEGER),
+      new Attribute("a\"b\\c_id", AttributeType.INTEGER),
       new Attribute("score", AttributeType.INTEGER)
     )
 
     def buildTup(id: Int, name: String): Tuple = {
       val b = Tuple.builder(buildSchema)
-      b.add(buildSchema.getAttribute("id"), Int.box(id))
+      b.add(buildSchema.getAttribute("a\"b\\c_id"), Int.box(id))
       b.add(buildSchema.getAttribute("name"), name)
       b.build()
     }
     def probeTup(id: Int, score: Int): Tuple = {
       val b = Tuple.builder(probeSchema)
-      b.add(probeSchema.getAttribute("id"), Int.box(id))
+      b.add(probeSchema.getAttribute("a\"b\\c_id"), Int.box(id))
       b.add(probeSchema.getAttribute("score"), Int.box(score))
       b.build()
     }
@@ -401,8 +401,8 @@ object HashJoinTransformHandler extends TransformHandler {
     TupleIO.writeTuples(probePath, probeRows.iterator, probeSchema)
 
     val desc = new HashJoinOpDesc[Integer]()
-    desc.buildAttributeName = "id"
-    desc.probeAttributeName = "id"
+    desc.buildAttributeName = "a\"b\\c_id"
+    desc.probeAttributeName = "a\"b\\c_id"
     desc.joinType = JoinType.INNER
 
     (desc, Map(PortIdentity(0) -> buildPath, PortIdentity(1) -> probePath))
@@ -507,7 +507,7 @@ object KeywordSearchTransformHandler extends TransformHandler {
   override val opDescClass: Class[_ <: LogicalOp] = classOf[KeywordSearchOpDesc]
 
   override def fixture(testRoot: Path): (LogicalOp, Map[PortIdentity, Path]) = {
-    val columns = Seq(("txt", AttributeType.STRING))
+    val columns = Seq(("a\"b\\c_txt", AttributeType.STRING))
     val rows = Seq(
       Seq[Any]("i love this product"),
       Seq[Any]("what a great day"),
@@ -518,7 +518,7 @@ object KeywordSearchTransformHandler extends TransformHandler {
       CuratedHandlers.writeFixture(testRoot.resolve("input_port_0.jsonl"), columns, rows)
 
     val desc = new KeywordSearchOpDesc()
-    desc.attribute = "txt"
+    desc.attribute = "a\"b\\c_txt"
     desc.keyword = "love day"
     desc.isCaseSensitive = false
 
@@ -567,11 +567,11 @@ object ImageVisualizerVisualizationHandler extends TransformHandler {
   override val opDescClass: Class[_ <: LogicalOp] = classOf[ImageVisualizerOpDesc]
 
   override def fixture(testRoot: Path): (LogicalOp, Map[PortIdentity, Path]) = {
-    val schema = new Schema(new Attribute("image_bytes", AttributeType.BINARY))
+    val schema = new Schema(new Attribute("a\"b\\c_image_bytes", AttributeType.BINARY))
 
     def tup(bytes: Array[Byte]): Tuple = {
       val builder = Tuple.builder(schema)
-      builder.add(schema.getAttribute("image_bytes"), bytes)
+      builder.add(schema.getAttribute("a\"b\\c_image_bytes"), bytes)
       builder.build()
     }
 
@@ -583,7 +583,7 @@ object ImageVisualizerVisualizationHandler extends TransformHandler {
     TupleIO.writeTuples(inputPath, rows.iterator, schema)
 
     val desc = new ImageVisualizerOpDesc()
-    desc.binaryContent = "image_bytes"
+    desc.binaryContent = "a\"b\\c_image_bytes"
 
     (desc, Map(PortIdentity(0) -> inputPath))
   }

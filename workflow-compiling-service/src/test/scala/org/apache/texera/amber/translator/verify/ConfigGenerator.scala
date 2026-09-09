@@ -276,7 +276,11 @@ object ConfigGenerator {
             }
         }
       ),
-      merged("hostileText", numbered(hostileTextFills(opClass, baseNode, "")))
+      merged("hostileText", numbered(hostileTextFills(opClass, baseNode, ""))),
+      merged(
+        "hostileColumns",
+        hostileColumnFills(opClass, baseNode, "", schemas, mutable.Set.empty[(Int, String)])
+      )
     ).flatten
 
   /** Apply each variant to its own clone of `baseNode` and read the result back as an
@@ -581,6 +585,67 @@ object ConfigGenerator {
           hostileLeaf(f, childPath)
             .map(fill => Variant(s"${fill._1.stripPrefix("/")}=hostileText", Seq(fill)))
             .toSeq
+      }
+    }
+
+  /** Every COLUMN knob, pointed at a hostile-named column, the way
+    * [[hostileTextFills]] moves the free-text ones. The two never touch the same
+    * knob: a column knob carries a name the generated code writes into a
+    * subscript, a text knob carries a value.
+    */
+  private def hostileColumnFills(
+      clazz: Class[_],
+      baseNode: JsonNode,
+      path: String,
+      schemas: Map[Int, Schema],
+      taken: mutable.Set[(Int, String)]
+  ): Seq[Variant] =
+    configFields(clazz).filterNot(hiddenBySibling(_, baseNode.at(path))).flatMap { f =>
+      val childPath = pointerOf(f, path)
+      rowType(f) match {
+        case Some(row) =>
+          rowPaths(f, baseNode.at(childPath), childPath).flatMap { rowPath =>
+            val fills = hostileColumnFills(row, baseNode, rowPath, schemas, taken).flatMap(_.at)
+            if (fills.isEmpty) None
+            else Some(Variant(s"${rowPath.stripPrefix("/")}=hostileColumn", fills))
+          }
+        case None =>
+          hostileColumnLeaf(f, childPath, baseNode.at(path), schemas, taken)
+            .map(fill => Variant(s"${fill._1.stripPrefix("/")}=hostileColumn", Seq(fill)))
+            .toSeq
+      }
+    }
+
+  /** The hostile column a knob can take, or `None` where it is no column knob or
+    * none carries the type it already reads. On the type the knob HOLDS, not the
+    * types its rule admits: a filter's `value` is parsed as the held column's
+    * type, so moving the knob to a STRING would ask the operator to read `eve` as
+    * a number and fail on this generator rather than on any escaping.
+    */
+  private def hostileColumnLeaf(
+      f: Field,
+      childPath: String,
+      current: JsonNode,
+      schemas: Map[Int, Schema],
+      taken: mutable.Set[(Int, String)]
+  ): Option[(String, JsonNode)] =
+    autofillSpec(f).flatMap { spec =>
+      val held = current.path(jsonNameOf(f))
+      val heldName = if (held.isArray) held.path(0).asText("") else held.asText("")
+      for {
+        s <- schemas.get(spec.port)
+        attr <- s.getAttributes.find(_.getName == heldName)
+        // One knob per column: two axes on a single column draw a degenerate
+        // chart. Per PORT, since two ports are two tables.
+        col <-
+          HostileColumn
+            .forType(attr.getType)
+            .find(c => !taken.contains((spec.port, c)) && s.getAttributeNames.contains(c))
+      } yield {
+        taken += ((spec.port, col))
+        val nf = objectMapper.getNodeFactory
+        val value: JsonNode = if (spec.holdsList) nf.arrayNode().add(col) else nf.textNode(col)
+        (childPath, value)
       }
     }
 

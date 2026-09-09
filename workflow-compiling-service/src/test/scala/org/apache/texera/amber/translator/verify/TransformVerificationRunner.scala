@@ -212,6 +212,7 @@ object TransformVerificationRunner {
     val Nulls = "nulls"
     val EnumSweep = "enumSweep"
     val HostileText = "hostileText"
+    val HostileColumns = "hostileColumns"
     val CountVectorizerText = "countVectorizer_text"
     val TfidfText = "tfidf_text"
     val NonFeatureColumn = "nonFeatureColumn"

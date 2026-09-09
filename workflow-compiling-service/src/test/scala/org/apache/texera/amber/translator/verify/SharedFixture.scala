@@ -138,6 +138,43 @@ final case class ProjectedFixture(
   override def rowsFor(port: Int): Seq[Tuple] = rows
 }
 
+object HostileColumn {
+
+  /** Columns of [[CanonicalFixture]] whose NAMES hold the characters that end a
+    * Python string literal, so an operator pointed at one has to escape the name
+    * it writes. They are the table's own columns renamed rather than columns added
+    * beside them: the arrangements an operator needs already live here, and a
+    * second set under hostile names would be the same table twice.
+    */
+  private val prefix = "a\"b\\c_"
+
+  /** Three components summing to 100 in every row (the ternary family). */
+  val Numeric: Seq[String] = Seq("simplex_a", "simplex_b", "simplex_c").map(prefix + _)
+
+  val IntegerLike: Seq[String] = Seq(prefix + "species_pred")
+
+  /** Carries a single quote and a newline besides, the two that end a `'...'`
+    * literal and a `#` comment. Only one column needs them to put the question.
+    */
+  val Text: Seq[String] = Seq("a\"b'c\\d\ne_uniq_name")
+
+  val Timestamp: Seq[String] = Seq(prefix + "finish_ts")
+
+  val all: Seq[String] = Numeric ++ IntegerLike ++ Text ++ Timestamp
+
+  /** The ones carrying `t`, in the order a caller hands them to siblings. */
+  def forType(t: org.apache.texera.amber.core.tuple.AttributeType): Seq[String] = {
+    import org.apache.texera.amber.core.tuple.AttributeType._
+    t match {
+      case STRING         => Text
+      case TIMESTAMP      => Timestamp
+      case INTEGER | LONG => IntegerLike
+      case DOUBLE         => Numeric
+      case _              => Seq.empty
+    }
+  }
+}
+
 object SharedFixture {
 
   /** One empty cell per column, spread across rows so no row is wholly empty — an

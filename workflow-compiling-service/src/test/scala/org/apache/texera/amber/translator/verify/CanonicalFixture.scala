@@ -69,19 +69,19 @@ object CanonicalFixture extends SharedFixture {
       AttributeType.TIMESTAMP
     ), // real timestamp; Gantt start / TimeSeries axis
     new Attribute(
-      "finish_ts",
+      "a\"b\\c_finish_ts",
       AttributeType.TIMESTAMP
     ), // always > start_ts; Gantt finish (bar width)
     new Attribute(
-      "uniq_name",
+      "a\"b'c\\d\ne_uniq_name",
       AttributeType.STRING
     ), // distinct per row: Pie/name-keyed ops need no duplicates
     new Attribute(
-      "simplex_a",
+      "a\"b\\c_simplex_a",
       AttributeType.DOUBLE
     ), // >0 and simplex_a+simplex_b+simplex_c == 100 (ternary-contour)
-    new Attribute("simplex_b", AttributeType.DOUBLE), // >0 simplex component summing to 100
-    new Attribute("simplex_c", AttributeType.DOUBLE), // >0 simplex component summing to 100
+    new Attribute("a\"b\\c_simplex_b", AttributeType.DOUBLE), // >0 simplex component summing to 100
+    new Attribute("a\"b\\c_simplex_c", AttributeType.DOUBLE), // >0 simplex component summing to 100
     // ── text + iris-numeric columns for Hugging Face model operators ──
     new Attribute(
       "short_text",
@@ -94,7 +94,7 @@ object CanonicalFixture extends SharedFixture {
     new Attribute("petal_length", AttributeType.DOUBLE), // iris petal length in cm (~1.3–6.5)
     new Attribute("petal_width", AttributeType.DOUBLE), // iris petal width in cm (~0.2–2.4)
     new Attribute(
-      "species",
+      "a\"b\\c_species",
       AttributeType.INTEGER
     ), // the 0/1 iris class, exactly `petal_length >= 3.9`: the label the sklearn
     // families fit against, separable by the two petal columns above
@@ -108,7 +108,7 @@ object CanonicalFixture extends SharedFixture {
     ), // a third lower-case, a third upper, a third letterless: a case flag has to
     // change WHICH rows match, and on any other column it changes nothing
     new Attribute(
-      "species_pred",
+      "a\"b\\c_species_pred",
       AttributeType.INTEGER
     ), // a predictor's guess at `species`: the same 0/1 domain, wrong on a few rows.
     // Scoring compares a PAIR of columns, and no single label column supplies one.
@@ -191,8 +191,8 @@ object CanonicalFixture extends SharedFixture {
     */
   val sklearnNumeric: SharedFixture = ProjectedFixture(
     this,
-    Seq("petal_length", "petal_width", "species"),
-    keepFilled = Set("species")
+    Seq("petal_length", "petal_width", "a\"b\\c_species"),
+    keepFilled = Set("a\"b\\c_species")
   )
 
   /** [[sklearnNumeric]] plus a column an estimator cannot fit. The families that
@@ -231,8 +231,8 @@ object CanonicalFixture extends SharedFixture {
 
   val sklearnNumericWithText: SharedFixture = ProjectedFixture(
     this,
-    Seq("petal_length", "petal_width", "short_text", "species"),
-    keepFilled = Set("species")
+    Seq("petal_length", "petal_width", "short_text", "a\"b\\c_species"),
+    keepFilled = Set("a\"b\\c_species")
   )
 
   /** This table as the `countVectorizer=true` path reads it: one text column and
@@ -243,7 +243,7 @@ object CanonicalFixture extends SharedFixture {
     */
   val sklearnText: SharedFixture = ProjectedFixture(
     this,
-    Seq("short_text", "long_text", "species"),
-    keepFilled = Set("species")
+    Seq("short_text", "long_text", "a\"b\\c_species"),
+    keepFilled = Set("a\"b\\c_species")
   )
 }
