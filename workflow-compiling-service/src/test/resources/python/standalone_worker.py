@@ -94,11 +94,9 @@ def _run_one(script_path: str, work_dir: str) -> "dict[str, object]":
             exec(code, namespace)  # noqa: S102 (running generated verify code by design)
         return {"exit": 0, "stdout": out_buf.getvalue(), "stderr": err_buf.getvalue()}
     except SystemExit as e:
-        # `raise SystemExit(n)` is how a script ends itself, and under
-        # `python script.py` nothing catches it: the interpreter exits with n.
-        # Here the except below would read it as a crash, so it is answered with
-        # the code the script asked for — an operator that stops early on an
-        # input it cannot draw is reported as the success it is.
+        # The catch-all below would read this as a crash, so it is answered with
+        # the code the script asked for: an operator that stops early on an input
+        # it cannot draw succeeded.
         code = e.code if isinstance(e.code, int) else (0 if e.code is None else 1)
         return {"exit": code, "stdout": out_buf.getvalue(), "stderr": err_buf.getvalue()}
     except BaseException:  # noqa: BLE001 — a script error must NOT kill the worker
