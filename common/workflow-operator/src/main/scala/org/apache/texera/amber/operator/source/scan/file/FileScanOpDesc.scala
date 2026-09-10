@@ -28,7 +28,6 @@ import org.apache.texera.amber.core.workflow.{
   InputPort,
   OutputPort,
   PhysicalOp,
-  PortIdentity,
   SchemaPropagationFunc
 }
 import org.apache.texera.amber.operator.StandaloneCodeGenerator
@@ -93,9 +92,7 @@ class FileScanOpDesc
       outputPorts = List(OutputPort())
     )
 
-  override def generateStandaloneCode(): String = generateStandaloneCode(Map.empty)
-
-  override def generateStandaloneCode(inputSchemas: Map[PortIdentity, Schema]): String = {
+  override def generateStandaloneCode(): String = {
     val col = attributeName
     val enc = fileEncoding.toString.replace("_", "-").toLowerCase
     val buf = scala.collection.mutable.ArrayBuffer[String]()
@@ -109,16 +106,18 @@ class FileScanOpDesc
       if (isBinary) """"rb""""
       else s""""r", encoding=${pyStringLiteral(enc)}"""
 
+    // The executor takes the row's first String field, not its first column, so a row that
+    // carries an id ahead of the path still finds the path. Reading column 0 opened the id.
+    // A row with no string at all makes the executor's `.get` throw, so this raises too
+    // rather than quietly skipping the row.
+    buf += "def _texera_file_name(row):"
+    buf += "    for _v in row:"
+    buf += "        if isinstance(_v, str):"
+    buf += "            return _v"
+    buf += """    raise ValueError(f"no file name in row: {row!r}")"""
+    buf += ""
     buf += "_rows = []"
-    // The executor reads `getFields.collectFirst { case s: String => s }`: the
-    // first STRING field, not the first column. A table whose first column is a
-    // number sends the export to open that number instead of the path beside it.
-    // With no schema the first column is the only thing left to try.
-    val nameColumn = inputSchemas.values.headOption
-      .flatMap(_.getAttributes.find(_.getType == AttributeType.STRING))
-      .map(attr => s"in1df[${pyStringLiteral(attr.getName)}]")
-      .getOrElse("in1df.iloc[:, 0]")
-    buf += s"for _fn in $nameColumn:"
+    buf += "for _fn in (_texera_file_name(r) for r in in1df.itertuples(index=False)):"
     buf += s"    with open(_fn, $openArgs) as _f:"
 
     // Match the platform (FileScanUtils.createTuplesFromFile): its line-by-line
