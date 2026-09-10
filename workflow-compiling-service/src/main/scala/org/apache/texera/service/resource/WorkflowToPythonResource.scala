@@ -25,6 +25,10 @@ import jakarta.annotation.security.RolesAllowed
 import jakarta.ws.rs.core.MediaType
 import jakarta.ws.rs.{Consumes, POST, Path, Produces}
 import org.apache.texera.common.compiler.model.{LogicalPlan, LogicalPlanPojo}
+import org.apache.texera.common.compiler.{CompilationErrorHandling, WorkflowCompiler}
+import org.apache.texera.amber.core.tuple.Schema
+import org.apache.texera.amber.core.virtualidentity.{OperatorIdentity, WorkflowIdentity}
+import org.apache.texera.amber.core.workflow.{PortIdentity, WorkflowContext}
 import org.apache.texera.amber.translator.WorkflowToPythonTranslator
 
 @JsonTypeInfo(
@@ -59,7 +63,7 @@ class WorkflowToPythonResource extends LazyLogging {
   ): WorkflowToPythonResponse = {
     try {
       val logicalPlan = LogicalPlan(logicalPlanPojo)
-      val pythonCode = translator.translate(logicalPlan)
+      val pythonCode = translator.translate(logicalPlan, outputSchemasOf(logicalPlanPojo))
       WorkflowToPythonSuccess(pythonCode)
     } catch {
       case e: Exception =>
@@ -67,4 +71,24 @@ class WorkflowToPythonResource extends LazyLogging {
         WorkflowToPythonFailure(e.getMessage)
     }
   }
+
+  /**
+    * What each operator's output ports carry, for the generators that need a
+    * column's declared type. The same Lenient compile the editing path runs.
+    *
+    * A failure here is logged and translation goes on without them: a workflow
+    * the user can export should not become an error because the compiler choked.
+    */
+  private def outputSchemasOf(
+      logicalPlanPojo: LogicalPlanPojo
+  ): Map[OperatorIdentity, Map[PortIdentity, Option[Schema]]] =
+    try {
+      new WorkflowCompiler(new WorkflowContext(workflowId = WorkflowIdentity(0)))
+        .compile(logicalPlanPojo, CompilationErrorHandling.Lenient)
+        .operatorIdToOutputSchemas
+    } catch {
+      case e: Exception =>
+        logger.warn("Could not resolve output schemas; translating without them", e)
+        Map.empty
+    }
 }

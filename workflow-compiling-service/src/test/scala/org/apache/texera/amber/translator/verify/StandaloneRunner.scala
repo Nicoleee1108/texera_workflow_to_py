@@ -20,7 +20,8 @@
 package org.apache.texera.amber.translator.verify
 
 import com.typesafe.scalalogging.LazyLogging
-import org.apache.texera.amber.core.tuple.AttributeType
+import org.apache.texera.amber.core.tuple.{AttributeType, Schema}
+import org.apache.texera.amber.core.workflow.PortIdentity
 import org.apache.texera.amber.operator.{LogicalOp, StandaloneCodeGenerator}
 import org.apache.texera.amber.util.python.PythonWorkerPool
 
@@ -105,7 +106,9 @@ object StandaloneRunner extends LazyLogging {
 
     val source =
       renderScript(
-        gen.generateStandaloneCode(),
+        // The sidecar says what each column was DECLARED as, which the JSONL
+        // cannot carry.
+        gen.generateStandaloneCode(schemasOf(inputs)),
         inputs,
         outputPaths,
         gen.standaloneHelpers(),
@@ -344,6 +347,18 @@ object StandaloneRunner extends LazyLogging {
   // STRING-typed column names, for the read_json dtype map above.
   private def stringColumns(input: Path): Seq[String] =
     columnsOfType(input, AttributeType.STRING)
+
+  /** The declared schema behind each input port, read from the sidecars. A port the
+    * sidecar does not cover is left out rather than guessed at.
+    */
+  private def schemasOf(inputs: Map[Int, Path]): Map[PortIdentity, Schema] =
+    inputs.flatMap {
+      case (port, path) =>
+        scala.util
+          .Try(TupleIO.readSchemaSidecar(path))
+          .toOption
+          .map(schema => PortIdentity(port - 1) -> schema)
+    }
 
   /** Each declared column with the pandas dtype an Arrow round-trip gives it, which
     * is what the engine's own empty table carries. Only the types a fixture can hold
