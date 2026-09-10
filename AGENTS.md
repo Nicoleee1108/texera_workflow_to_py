@@ -121,8 +121,8 @@ Without it, `sbt` Python-integration tests fail to launch a worker.
 
 Reinstall from those requirement files whenever they change. CI builds its
 interpreter from them on every run, so a venv left behind runs the tests
-against library versions the product never sees — and a test that fails only
-there reads like a defect in the code rather than in the venv. `pip install
+against library versions the product never sees. A test that fails only there
+reads like a defect in the code rather than in the venv. `pip install
 --upgrade -r amber/requirements.txt -r amber/operator-requirements.txt`
 brings one back in line.
 

@@ -45,7 +45,6 @@ import { WorkflowCompilingService } from "../../../service/compile-workflow/work
 import {
   createOutputFormChangeEventStream,
   createShouldHideFieldFunc,
-  createValueRulesValidator,
   setChildTypeDependency,
   setHideExpression,
   setValueRules,
