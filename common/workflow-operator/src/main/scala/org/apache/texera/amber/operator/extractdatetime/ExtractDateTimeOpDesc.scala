@@ -52,7 +52,7 @@ class ExtractDateTimeOpDesc extends MapOpDesc with StandaloneCodeGenerator {
   @JsonProperty(required = true)
   @JsonSchemaTitle("Fields")
   @JsonPropertyDescription("parts of the timestamp to add as columns")
-  var extractions: List[ExtractDateTimeUnit] = List.empty
+  var fields: List[DateTimeField] = List.empty
 
   override def operatorInfo: OperatorInfo =
     OperatorInfo(
@@ -64,9 +64,16 @@ class ExtractDateTimeOpDesc extends MapOpDesc with StandaloneCodeGenerator {
       outputPorts = List(OutputPort())
     )
 
-  /** The units, with the empty and the null cases answered once. */
-  private def units: List[ExtractDateTimeUnit] =
-    Option(extractions).getOrElse(List.empty).filter(_ != null)
+  /** The fields asked for, with the empty and the null cases answered once. */
+  private def asked: List[DateTimeField] =
+    Option(fields).getOrElse(List.empty).filter(_ != null).distinct
+
+  /** What a field is called once it is a column of its own: the source column and
+    * the field, so reading two timestamp columns names four distinct results and a
+    * reader can see which came from where.
+    */
+  private def columnFor(field: DateTimeField): String =
+    s"${attribute}_${field.getName.replace(' ', '_')}"
 
   override def getPhysicalOp(
       workflowId: WorkflowIdentity,
@@ -89,36 +96,28 @@ class ExtractDateTimeOpDesc extends MapOpDesc with StandaloneCodeGenerator {
           // Every field reads as a whole number, so the added columns are INTEGER
           // whichever fields were asked for. `add` refuses a name the input already
           // carries, which is how a collision is reported before the operator runs.
-          val outputSchema = units.foldLeft(inputSchemas.values.head) { (schema, unit) =>
-            schema.add(resultNameOf(unit), AttributeType.INTEGER)
+          val outputSchema = asked.foldLeft(inputSchemas.values.head) { (schema, field) =>
+            schema.add(columnFor(field), AttributeType.INTEGER)
           }
           Map(operatorInfo.outputPorts.head.id -> outputSchema)
         }
       )
 
-  private def resultNameOf(unit: ExtractDateTimeUnit): String =
-    Option(unit.getResultAttribute)
-      .map(_.trim)
-      .filter(_.nonEmpty)
-      .getOrElse(throw new RuntimeException("Result attribute cannot be empty"))
-
   override def generateStandaloneCode(): String = {
-    if (units.isEmpty) return "out1df = in1df.copy()"
+    if (asked.isEmpty) return "out1df = in1df.copy()"
     val source = pyStringLiteral(attribute)
     val lines = scala.collection.mutable.ArrayBuffer[String](
       "out1df = in1df.copy()",
-      // The schema says TIMESTAMP, so a source that parsed its input has already
-      // made this a datetime and the call is a no-op. It is still made, for a source
-      // that handed the column over as text. NOT coerced: the engine reads a real
-      // moment here, so a cell Python cannot read is a disagreement to raise rather
-      // than to answer with an empty one.
+      // A no-op where the source already parsed its input, which is the usual case;
+      // made anyway for one that handed the column over as text. NOT coerced: the
+      // engine reads a real moment here, so a cell Python cannot is a disagreement.
       s"""_texera_ts = pd.to_datetime(out1df[$source])"""
     )
-    units.foreach { unit =>
-      val target = pyStringLiteral(resultNameOf(unit))
+    asked.foreach { field =>
+      val target = pyStringLiteral(columnFor(field))
       // Int64 rather than int64: a NaT has no year, and only the nullable dtype
       // can hold the hole the engine leaves there.
-      lines += s"""out1df[$target] = ${expressionFor(unit.getField)}.astype("Int64")"""
+      lines += s"""out1df[$target] = ${expressionFor(field)}.astype("Int64")"""
     }
     lines.mkString("\n")
   }

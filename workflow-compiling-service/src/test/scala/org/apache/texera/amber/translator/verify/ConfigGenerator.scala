@@ -427,26 +427,6 @@ object ConfigGenerator {
           ownScope.descend(jsonNameOf(f))
         ).toOption
       } yield {
-        // The row was built without seeing the rows already there, so a free-text
-        // knob comes back holding what a sibling holds, and where it names a column
-        // the operator CREATES the output schema refuses the pair. An autofill knob
-        // is left alone: it names a column that already exists.
-        configFields(row)
-          .filter(f =>
-            !hasAutofill(f) && declaredEnumValues(f).isEmpty && isFreeScalar(
-              effectiveScalarType(f)
-            )
-          )
-          .foreach { f =>
-            val pointer = pointerOf(f, "")
-            val held = next.at(pointer)
-            val siblings = rows.elements().asScala.map(_.at(pointer)).toSet
-            val moved = held.asText("") + (rows.size() + 1)
-            // Only where the field's own `pattern` still admits it: a colour states
-            // which words it takes, and a number appended to one names no colour.
-            if (held.isTextual && siblings.contains(held) && patternAccepts(f, moved))
-              setAtPointer(next, pointer, objectMapper.getNodeFactory.textNode(moved))
-          }
         // Fill the new row's own optional knobs too — the `optionals` variant is
         // computed against the BASE config, where this row does not exist yet, so
         // otherwise the row arrives with every free-value knob at its default, a step

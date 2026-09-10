@@ -40,17 +40,10 @@ class ExtractDateTimeOpDescSpec extends AnyFlatSpec with Matchers {
     new Attribute("ts", AttributeType.TIMESTAMP)
   )
 
-  private def unit(field: DateTimeField, result: String): ExtractDateTimeUnit = {
-    val u = new ExtractDateTimeUnit()
-    u.field = field
-    u.resultAttribute = result
-    u
-  }
-
-  private def desc(units: ExtractDateTimeUnit*): ExtractDateTimeOpDesc = {
+  private def desc(fields: DateTimeField*): ExtractDateTimeOpDesc = {
     val d = new ExtractDateTimeOpDesc
     d.attribute = "ts"
-    d.extractions = units.toList
+    d.fields = fields.toList
     d
   }
 
@@ -91,45 +84,60 @@ class ExtractDateTimeOpDescSpec extends AnyFlatSpec with Matchers {
     }
   }
 
-  "The output schema" should "append one INTEGER column per field, in the order asked" in {
-    val schema = outputSchema(desc(unit(DateTimeField.YEAR, "y"), unit(DateTimeField.MONTH, "m")))
-    schema.getAttributeNames shouldBe List("id", "ts", "y", "m")
-    schema.getAttribute("y").getType shouldBe AttributeType.INTEGER
-    schema.getAttribute("m").getType shouldBe AttributeType.INTEGER
+  "The output schema" should "name each added column after the source and the field" in {
+    val schema = outputSchema(desc(DateTimeField.YEAR, DateTimeField.DAY_OF_WEEK))
+    schema.getAttributeNames shouldBe List("id", "ts", "ts_year", "ts_day_of_week")
+    schema.getAttribute("ts_year").getType shouldBe AttributeType.INTEGER
+    schema.getAttribute("ts_day_of_week").getType shouldBe AttributeType.INTEGER
   }
 
   it should "keep the input untouched when no field is asked for" in {
     outputSchema(desc()).getAttributeNames shouldBe List("id", "ts")
   }
 
-  it should "refuse a result column the input already carries" in {
-    a[RuntimeException] should be thrownBy outputSchema(desc(unit(DateTimeField.YEAR, "id")))
+  // The same field twice names one column, so the repeat is dropped rather than
+  // reaching the schema as a duplicate.
+  it should "add one column for a field asked for twice" in {
+    outputSchema(desc(DateTimeField.YEAR, DateTimeField.YEAR)).getAttributeNames shouldBe List(
+      "id",
+      "ts",
+      "ts_year"
+    )
   }
 
-  it should "refuse an empty result column name" in {
-    a[RuntimeException] should be thrownBy outputSchema(desc(unit(DateTimeField.YEAR, "  ")))
+  it should "refuse a derived name the input already carries" in {
+    val d = new ExtractDateTimeOpDesc
+    d.attribute = "ts"
+    d.fields = List(DateTimeField.YEAR)
+    val clashing = new Schema(
+      new Attribute("ts", AttributeType.TIMESTAMP),
+      new Attribute("ts_year", AttributeType.INTEGER)
+    )
+    a[RuntimeException] should be thrownBy
+      d.getPhysicalOp(workflowId, executionId)
+        .propagateSchema
+        .func(Map(PortIdentity() -> clashing))
   }
 
   // 2024-03-05 14:09:07 is a Tuesday in ISO week 10 of Q1, day 65 of the year.
   "The executor" should "read every field the way ISO-8601 states it" in {
     val d = desc(
-      unit(DateTimeField.YEAR, "year"),
-      unit(DateTimeField.QUARTER, "quarter"),
-      unit(DateTimeField.MONTH, "month"),
-      unit(DateTimeField.DAY, "day"),
-      unit(DateTimeField.DAY_OF_WEEK, "dow"),
-      unit(DateTimeField.DAY_OF_YEAR, "doy"),
-      unit(DateTimeField.WEEK_OF_YEAR, "week"),
-      unit(DateTimeField.HOUR, "hour"),
-      unit(DateTimeField.MINUTE, "minute"),
-      unit(DateTimeField.SECOND, "second")
+      DateTimeField.YEAR,
+      DateTimeField.QUARTER,
+      DateTimeField.MONTH,
+      DateTimeField.DAY,
+      DateTimeField.DAY_OF_WEEK,
+      DateTimeField.DAY_OF_YEAR,
+      DateTimeField.WEEK_OF_YEAR,
+      DateTimeField.HOUR,
+      DateTimeField.MINUTE,
+      DateTimeField.SECOND
     )
-    val row = rowsOf(d, Some("2024-03-05 14:09:07")).head
-    row.drop(2) shouldBe Seq(2024, 1, 3, 5, 2, 65, 10, 14, 9, 7)
+    rowsOf(d, Some("2024-03-05 14:09:07")).head.drop(2) shouldBe
+      Seq(2024, 1, 3, 5, 2, 65, 10, 14, 9, 7)
   }
 
   it should "count Monday as 1 and Sunday as 7" in {
-    val d = desc(unit(DateTimeField.DAY_OF_WEEK, "dow"))
     val week = Seq(
       "2024-03-04",
       "2024-03-05",
@@ -139,30 +147,33 @@ class ExtractDateTimeOpDescSpec extends AnyFlatSpec with Matchers {
       "2024-03-09",
       "2024-03-10"
     ).map(day => Some(s"$day 00:00:00"))
-    rowsOf(d, week: _*).map(_.last) shouldBe Seq(1, 2, 3, 4, 5, 6, 7)
+    rowsOf(desc(DateTimeField.DAY_OF_WEEK), week: _*).map(_.last) shouldBe Seq(1, 2, 3, 4, 5, 6, 7)
   }
 
   // The operator adds columns; it says nothing about which rows belong, so a row
   // whose timestamp is empty keeps its place with the added columns empty.
   it should "leave the added columns empty for an empty timestamp, and keep the row" in {
-    val d = desc(unit(DateTimeField.YEAR, "year"), unit(DateTimeField.MONTH, "month"))
-    val rows = rowsOf(d, Some("2024-03-05 14:09:07"), None)
+    val rows = rowsOf(
+      desc(DateTimeField.YEAR, DateTimeField.MONTH),
+      Some("2024-03-05 14:09:07"),
+      None
+    )
     rows should have length 2
     rows(1).drop(2) shouldBe Seq(null, null)
   }
 
   "The generated Python" should "state the ISO weekday, which pandas does not" in {
-    val code = desc(unit(DateTimeField.DAY_OF_WEEK, "dow")).generateStandaloneCode()
-    code should include("_texera_ts.dt.dayofweek + 1")
+    desc(DateTimeField.DAY_OF_WEEK).generateStandaloneCode() should
+      include("_texera_ts.dt.dayofweek + 1")
   }
 
-  it should "hold every column name as an escaped literal" in {
+  it should "hold the source and the derived name as escaped literals" in {
     val d = new ExtractDateTimeOpDesc
     d.attribute = "a\"b"
-    d.extractions = List(unit(DateTimeField.YEAR, "c\\d"))
+    d.fields = List(DateTimeField.YEAR)
     val code = d.generateStandaloneCode()
     code should include("""out1df["a\"b"]""")
-    code should include("""out1df["c\\d"]""")
+    code should include("""out1df["a\"b_year"]""")
   }
 
   it should "copy the frame through when no field is asked for" in {

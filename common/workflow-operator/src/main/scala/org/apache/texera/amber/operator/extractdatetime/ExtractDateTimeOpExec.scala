@@ -39,10 +39,11 @@ class ExtractDateTimeOpExec(descString: String) extends MapOpExec {
     // A null timestamp has no fields, so every column this operator adds is empty
     // for that row rather than the row being dropped: the operator adds columns and
     // says nothing about which rows belong.
-    val added = Option(desc.extractions)
+    val added = Option(desc.fields)
       .getOrElse(List.empty)
       .filter(_ != null)
-      .map(unit => moment.map(m => Int.box(read(m, unit.getField))).orNull)
+      .distinct
+      .map(field => moment.map(m => Int.box(read(m, field))).orNull)
     TupleLike(tuple.getFields ++ added)
   }
 

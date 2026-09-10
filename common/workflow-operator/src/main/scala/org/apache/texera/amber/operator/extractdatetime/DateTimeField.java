@@ -24,10 +24,8 @@ import com.fasterxml.jackson.annotation.JsonValue;
 /**
  * A field of a timestamp that can be read out of it as a whole number.
  *
- * <p>Every one of these is defined by ISO-8601, which is what lets the engine and
- * the exported Python agree: a Monday is 1 and a Sunday is 7, and week 1 of a year
- * is the one holding its first Thursday. Neither runtime's own default says that —
- * pandas counts weekdays from 0 — so both sides state it.
+ * <p>Read as ISO-8601 states them, which is what lets the engine and the exported
+ * Python agree: a Monday is 1, and pandas counts weekdays from 0.
  */
 public enum DateTimeField {
 
