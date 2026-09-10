@@ -28,6 +28,7 @@ import org.apache.texera.amber.core.workflow.{
   InputPort,
   OutputPort,
   PhysicalOp,
+  PortIdentity,
   SchemaPropagationFunc
 }
 import org.apache.texera.amber.operator.StandaloneCodeGenerator
@@ -92,7 +93,9 @@ class FileScanOpDesc
       outputPorts = List(OutputPort())
     )
 
-  override def generateStandaloneCode(): String = {
+  override def generateStandaloneCode(): String = generateStandaloneCode(Map.empty)
+
+  override def generateStandaloneCode(inputSchemas: Map[PortIdentity, Schema]): String = {
     val col = attributeName
     val enc = fileEncoding.toString.replace("_", "-").toLowerCase
     val buf = scala.collection.mutable.ArrayBuffer[String]()
@@ -107,7 +110,15 @@ class FileScanOpDesc
       else s""""r", encoding=${pyStringLiteral(enc)}"""
 
     buf += "_rows = []"
-    buf += "for _fn in in1df.iloc[:, 0]:"
+    // The executor reads `getFields.collectFirst { case s: String => s }`: the
+    // first STRING field, not the first column. A table whose first column is a
+    // number sends the export to open that number instead of the path beside it.
+    // With no schema the first column is the only thing left to try.
+    val nameColumn = inputSchemas.values.headOption
+      .flatMap(_.getAttributes.find(_.getType == AttributeType.STRING))
+      .map(attr => s"in1df[${pyStringLiteral(attr.getName)}]")
+      .getOrElse("in1df.iloc[:, 0]")
+    buf += s"for _fn in $nameColumn:"
     buf += s"    with open(_fn, $openArgs) as _f:"
 
     // Match the platform (FileScanUtils.createTuplesFromFile): its line-by-line

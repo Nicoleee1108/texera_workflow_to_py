@@ -103,7 +103,15 @@ class URLFetcherOpDescSpec extends AnyFlatSpec with Matchers {
         |        _content = _resp.read()
         |except (OSError, http.client.HTTPException):
         |    _content = f"Fetch failed for URL: {_url}".encode("utf-8")
-        |out1df = pd.DataFrame({"URL content": [_content.decode("utf-8")]})""".stripMargin
+        |out1df = pd.DataFrame({"URL content": [_content.decode("utf-8", errors="replace")]})""".stripMargin
+  }
+
+  // `IOUtils.toString` reads through a decoder that substitutes U+FFFD, so a
+  // response the executor read to the end must not end the script instead.
+  it should "replace a malformed byte rather than refusing the response" in {
+    configured(DecodingMethod.UTF_8).generateStandaloneCode() should include(
+      """decode("utf-8", errors="replace")"""
+    )
   }
 
   // The executor guards only the fetch, so a value with no scheme stops it. `Exception`

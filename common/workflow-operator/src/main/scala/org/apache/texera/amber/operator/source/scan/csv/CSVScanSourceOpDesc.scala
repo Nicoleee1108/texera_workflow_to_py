@@ -172,6 +172,12 @@ class CSVScanSourceOpDesc extends ScanSourceOpDesc with StandaloneCodeGenerator 
     args += s"""encoding=${pyStringLiteral(encoding)}"""
     args += s"header=$headerArg"
 
+    // The parser sets no nullValue, so a blank cell is null and nothing else is.
+    // pandas reads a whole vocabulary as missing by default, which would turn the
+    // words "NA", "NULL" and "nan" into holes. Only the empty field is named back.
+    args += "keep_default_na=False"
+    args += """na_values=[""]"""
+
     // A CSV carries no types, so both readers infer, and they do not infer
     // alike: the schema above tries TIMESTAMP and parses what it can, while
     // pd.read_csv leaves a date column as text. Name the columns this operator
@@ -196,9 +202,20 @@ class CSVScanSourceOpDesc extends ScanSourceOpDesc with StandaloneCodeGenerator 
 
     val readCall = s"out1df = pd.read_csv(${args.mkString(", ")})"
 
-    if (hasHeader) readCall
+    // The schema's own names, which every downstream operator was configured
+    // against. They differ from pandas' in both directions: a blank header is
+    // `column-2` here and `Unnamed: 1` there, while a header literally spelt
+    // `Unnamed: 1` is kept. Renaming by position tells the two apart.
+    val schemaNames: Seq[String] =
+      Try(sourceSchema()).toOption.toSeq
+        .flatMap(_.getAttributes.map(a => pyStringLiteral(a.getName)))
+
+    if (schemaNames.nonEmpty)
+      s"""$readCall
+         |out1df.columns = [${schemaNames.mkString(", ")}]""".stripMargin
+    else if (hasHeader) readCall
     else {
-      // Match Texera's fallback column naming when there's no header
+      // Unresolved file: fall back to Texera's headerless naming.
       s"""$readCall
          |out1df.columns = [f"column-{i + 1}" for i in range(len(out1df.columns))]""".stripMargin
     }

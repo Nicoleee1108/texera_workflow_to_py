@@ -105,7 +105,11 @@ class URLFetcherOpDesc extends SourceOperatorDescriptor with StandaloneCodeGener
   override def generateStandaloneCode(): String = {
     val urlLiteral = objectMapper.writeValueAsString(url)
     val isUtf8 = decodingMethod == DecodingMethod.UTF_8
-    val valueExpr = if (isUtf8) """_content.decode("utf-8")""" else "_content"
+    // errors="replace": the executor decodes through `IOUtils.toString`, whose
+    // reader substitutes U+FFFD for a malformed byte. Python's strict default
+    // would end the run on a response the workflow read to the end.
+    val valueExpr =
+      if (isUtf8) """_content.decode("utf-8", errors="replace")""" else "_content"
     val buf = scala.collection.mutable.ArrayBuffer[String]()
     buf += "import http.client"
     buf += "import urllib.request"

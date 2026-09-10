@@ -28,6 +28,7 @@ import org.apache.texera.amber.core.tuple.{
 }
 import org.apache.texera.amber.core.executor.OpExecWithClassName
 import org.apache.texera.amber.core.virtualidentity.{ExecutionIdentity, WorkflowIdentity}
+import org.apache.texera.amber.core.workflow.PortIdentity
 import org.apache.texera.amber.operator.TestOperators
 import org.apache.texera.amber.operator.source.scan.{FileAttributeType, FileDecodingMethod}
 import org.apache.texera.amber.util.JSONUtils.objectMapper
@@ -155,6 +156,17 @@ class FileScanOpDescSpec extends AnyFlatSpec with BeforeAndAfter {
           |        _rows.extend(l.rstrip("\n") for l in _f)
           |out1df = pd.DataFrame({"line": _rows})""".stripMargin
     )
+  }
+
+  // The executor takes the first STRING field, so a table that leads with a
+  // number sends the export to open the number instead of the path beside it.
+  it should "open the first column the schema declares a string" in {
+    val schema = Schema()
+      .add(new Attribute("id", AttributeType.INTEGER))
+      .add(new Attribute("path", AttributeType.STRING))
+    val code = fileScanOpDesc.generateStandaloneCode(Map(PortIdentity(0) -> schema))
+    assert(code.contains("""for _fn in in1df["path"]:"""))
+    assert(!code.contains("iloc[:, 0]"))
   }
 
   // The enum name is "US_ASCII", not a Python codec name.
