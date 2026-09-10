@@ -89,6 +89,7 @@ import org.apache.texera.amber.operator.source.sql.postgresql.PostgreSQLSourceOp
 import org.apache.texera.amber.operator.split.SplitOpDesc
 import org.apache.texera.amber.operator.substringSearch.SubstringSearchOpDesc
 import org.apache.texera.amber.operator.symmetricDifference.SymmetricDifferenceOpDesc
+import org.apache.texera.amber.operator.binning.BinningOpDesc
 import org.apache.texera.amber.operator.extractdatetime.ExtractDateTimeOpDesc
 import org.apache.texera.amber.operator.typecasting.TypeCastingOpDesc
 import org.apache.texera.amber.operator.udf.java.JavaUDFOpDesc
@@ -222,6 +223,7 @@ trait StateTransferFunc
     new Type(value = classOf[AsterixDBSourceOpDesc], name = "AsterixDBSource"),
     new Type(value = classOf[TypeCastingOpDesc], name = "TypeCasting"),
     new Type(value = classOf[ExtractDateTimeOpDesc], name = "ExtractDateTime"),
+    new Type(value = classOf[BinningOpDesc], name = "Binning"),
     new Type(value = classOf[LimitOpDesc], name = "Limit"),
     new Type(value = classOf[SleepOpDesc], name = "Sleep"),
     new Type(value = classOf[LoopStartOpDesc], name = "LoopStart"),
