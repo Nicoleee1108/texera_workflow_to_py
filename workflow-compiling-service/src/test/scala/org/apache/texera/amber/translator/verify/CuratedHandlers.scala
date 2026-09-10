@@ -415,6 +415,15 @@ object HashJoinTransformHandler extends TransformHandler {
 object TypeCastingTransformHandler extends TransformHandler {
   override val opDescClass: Class[_ <: LogicalOp] = classOf[TypeCastingOpDesc]
 
+  /** The five other casts take their hole. `int_to_str` cannot: pandas has no
+    * plain integer column that holds one, so a hole widens this column to
+    * float64 before the operator sees it, and every value grows the decimal
+    * point the engine's integer never had. What the comparison would then be
+    * asking is whether the script's reader kept the column an integer, which is
+    * a question about the reader and not about the cast.
+    */
+  override def nullsKeepFilled: Option[Set[String]] = Some(Set("int_to_str"))
+
   override def fixture(testRoot: Path): (LogicalOp, Map[PortIdentity, Path]) = {
     // One dedicated source column per target so the casts don't chain.
     val columns = Seq(
