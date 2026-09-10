@@ -45,7 +45,9 @@ import org.apache.texera.amber.operator.huggingFace.HuggingFaceSpamSMSDetectionO
 import org.apache.texera.amber.operator.sklearn.training.SklearnTrainingOpDesc
 import org.apache.texera.amber.operator.sklearn.training.SklearnTrainingGaussianNaiveBayesOpDesc
 import org.apache.texera.amber.operator.sklearn.testing.SklearnTestingOpDesc
+import org.apache.texera.amber.operator.substringSearch.SubstringSearchOpDesc
 import org.apache.texera.amber.operator.typecasting.TypeCastingOpDesc
+import org.apache.texera.amber.operator.unneststring.UnnestStringOpDesc
 import org.apache.texera.amber.operator.visualization.wordCloud.WordCloudOpDesc
 import org.apache.texera.amber.operator.visualization.DotPlot.DotPlotOpDesc
 import org.apache.texera.amber.operator.visualization.barChart.BarChartOpDesc
@@ -197,10 +199,16 @@ object TransformVerificationRunner {
     * The auto-tier twin of [[TransformHandler.extraScenarios]]: it names only the
     * table and the pins, and the generator writes the config.
     */
+  /** @param withGaps one empty cell per column, as [[nullsCase]] writes the base
+    *                 table. That case takes the base config, so a hole only ever
+    *                 lands in a column the operator carries through, never in the
+    *                 one a pin points it at.
+    */
   final case class AltScenario(
       label: String,
       fixture: SharedFixture,
-      pinned: Map[String, JsonNode]
+      pinned: Map[String, JsonNode],
+      withGaps: Boolean = false
   )
 
   /** Every kind of run a [[variantsNotRun]] row can name: the derived variants,
@@ -216,6 +224,9 @@ object TransformVerificationRunner {
     val CountVectorizerText = "countVectorizer_text"
     val TfidfText = "tfidf_text"
     val NonFeatureColumn = "nonFeatureColumn"
+    val HoledIntegerColumn = "holedIntegerColumn"
+    val BooleanColumn = "booleanColumn"
+    val NumericTextColumn = "numericTextColumn"
     val TextLabels = "textLabels"
     val RegressionBranch = "regressionBranch"
 
@@ -269,7 +280,51 @@ object TransformVerificationRunner {
     // The advanced trainers are the ones left out: they name the feature columns
     // themselves rather than taking every column but the target, so a column an
     // estimator cannot fit is not reachable for them.
+    // A holed integer column, which the `@SampleColumn` text one cannot show: it
+    // widens to float in the script and grows a decimal point. The species label
+    // rather than `id`, which is held filled so joins keep pairing.
+    val holedIntegerColumn = AltScenario(
+      label = RunKind.HoledIntegerColumn,
+      fixture = CanonicalFixture,
+      pinned = Map("Attribute" -> TextNode.valueOf("a\"b\\c_species")),
+      withGaps = true
+    )
+    // The one boolean column, holed for the same reason: pandas then reads it as
+    // 1.0 and 0.0 where the engine wrote "true". Filled it renders right on its
+    // own, so the hole is what makes this ask something.
+    val booleanColumn = AltScenario(
+      label = RunKind.BooleanColumn,
+      fixture = CanonicalFixture,
+      pinned = Map("Attribute" -> TextNode.valueOf("a\"b\\c_high_score")),
+      withGaps = true
+    )
+    // The same two columns. The substring is pinned because a generated one would
+    // not tell the renderings apart: "0" is in both "0" and the widened "1.0".
+    val substringScenarios = Seq(
+      holedIntegerColumn.copy(
+        pinned = Map(
+          "attribute" -> TextNode.valueOf("a\"b\\c_species"),
+          "substring" -> TextNode.valueOf("0")
+        )
+      ),
+      booleanColumn.copy(
+        pinned = Map(
+          "attribute" -> TextNode.valueOf("a\"b\\c_high_score"),
+          "substring" -> TextNode.valueOf("true")
+        )
+      )
+    )
+    // Word Cloud pointed at a column of numbers. Its type rule only warns, so a
+    // user reaches this, and `.str` raises on anything but text.
+    val numericTextColumn = AltScenario(
+      label = RunKind.NumericTextColumn,
+      fixture = CanonicalFixture,
+      pinned = Map("textColumn" -> TextNode.valueOf("id"))
+    )
     Map(
+      classOf[WordCloudOpDesc] -> Seq(numericTextColumn),
+      classOf[UnnestStringOpDesc] -> Seq(holedIntegerColumn, booleanColumn),
+      classOf[SubstringSearchOpDesc] -> substringScenarios,
       classOf[SklearnClassifierOpDesc] -> Seq(countVectorizerText, tfidfText, nonFeatureColumn),
       classOf[SklearnTrainingOpDesc] -> Seq(countVectorizerText, tfidfText, nonFeatureColumn),
       // No text scenarios, and nothing pinned: this operator declares neither
@@ -707,7 +762,11 @@ object TransformVerificationRunner {
                 // requires under them is filled like any other required field.
                 .map {
                   case (label, o) =>
-                    (s"${alt.label}/$label", o, alt.fixture.writeInputs(dir, inputPortCount))
+                    (
+                      s"${alt.label}/$label",
+                      o,
+                      alt.fixture.write(dir, inputPortCount, withGaps = alt.withGaps)
+                    )
                 }
             }
       }
