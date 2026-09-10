@@ -2361,6 +2361,21 @@ describe("OperatorPropertyEditFrameComponent", () => {
         expect(rowControl(1).hasError("uniqueAmongRows")).toBe(false);
       });
 
+      it("clears the row left behind when the duplicate row is deleted", () => {
+        // Deleting a row changes no surviving control's value.
+        renderTwoRows("C", "C");
+        expect(rowControl(0).hasError("uniqueAmongRows")).toBe(true);
+
+        // The delete button, since the array type's `remove` is what keeps the
+        // model and the controls in step.
+        const deleteButtons = realFixture.debugElement.queryAll(By.css("button[nzDanger]"));
+        expect(deleteButtons.length).toBe(2);
+        deleteButtons[1].nativeElement.click();
+        realFixture.detectChanges();
+
+        expect(rowControl(0).hasError("uniqueAmongRows")).toBe(false);
+      });
+
       it("marks the row already holding the parameter a row is changed onto", () => {
         renderTwoRows("C", "kernel");
         expect(rowControl(0).hasError("uniqueAmongRows")).toBe(false);
