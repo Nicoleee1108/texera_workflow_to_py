@@ -86,7 +86,8 @@ object StandaloneRunner extends LazyLogging {
       inputs: Map[Int, Path],
       outputPortCount: Int,
       workDir: Path,
-      pythonExe: String = resolvePython()
+      pythonExe: String = resolvePython(),
+      exactIntegers: Boolean = false
   ): Result = {
     val gen = opDesc match {
       case g: StandaloneCodeGenerator => g
@@ -112,7 +113,8 @@ object StandaloneRunner extends LazyLogging {
         inputs,
         outputPaths,
         gen.standaloneHelpers(),
-        gen.standaloneImports()
+        gen.standaloneImports(),
+        exactIntegers
       )
     Files.write(scriptPath, source.getBytes(StandardCharsets.UTF_8))
 
@@ -179,7 +181,8 @@ object StandaloneRunner extends LazyLogging {
       inputs: Map[Int, Path],
       outputs: Map[Int, Path],
       helpers: Seq[String],
-      imports: Seq[String]
+      imports: Seq[String],
+      exactIntegers: Boolean
   ): String = {
     val sb = new StringBuilder
 
@@ -207,8 +210,19 @@ object StandaloneRunner extends LazyLogging {
     // (str/int/float/bool/None) pass through unchanged, so ordinary DataFrame
     // outputs are unaffected.
     sb.append("def _texera_encode_obj_cols(df):\n")
+    // A numpy scalar is unwrapped rather than pickled. An operator that rebuilds
+    // rows out of an integer column hands back numpy int64s, which are not
+    // Python ints, so the branch below would write a base64 pickle into a column
+    // the schema declares a number.
+    sb.append("    def _texera_plain(_v):\n")
+    sb.append("        if _v is pd.NA:\n")
+    sb.append("            return None\n")
+    sb.append("        if hasattr(_v, 'item') and getattr(_v, 'ndim', None) == 0:\n")
+    sb.append("            return _v.item()\n")
+    sb.append("        return _v\n")
     sb.append("    for _c in df.columns:\n")
     sb.append("        if df[_c].dtype == object:\n")
+    sb.append("            df[_c] = df[_c].map(_texera_plain)\n")
     sb.append(
       "            df[_c] = df[_c].map(lambda _v: base64.b64encode(pickle.dumps(_v)).decode('ascii') " +
         "if not isinstance(_v, (str, int, float, bool, type(None))) else _v)\n"
@@ -228,6 +242,27 @@ object StandaloneRunner extends LazyLogging {
     sb.append("    _s = _v.strftime('%Y-%m-%d %H:%M:%S.%f').rstrip('0')\n")
     sb.append("    return _s + '0' if _s.endswith('.') else _s\n")
     sb.append("\n")
+    // Both paths have to be handed the same numbers. `read_json` parses a column
+    // holding a null through float64, so a LONG of 9007199254740993 arrives as
+    // 9007199254740992 while the engine still has the tuple. Python's json reads
+    // it exactly. Only for a JVM Path A: a Python operator's own Table goes
+    // through pandas too, so there the float is what BOTH sides see.
+    if (exactIntegers) {
+      sb.append("def _texera_exact_ints(_path, _columns):\n")
+      sb.append("    _values = {_c: [] for _c in _columns}\n")
+      sb.append("    with open(_path, 'r', encoding='utf-8') as _f:\n")
+      sb.append("        for _line in _f:\n")
+      sb.append("            _line = _line.strip()\n")
+      sb.append("            if not _line:\n")
+      sb.append("                continue\n")
+      sb.append("            _row = json.loads(_line)\n")
+      sb.append("            for _c in _columns:\n")
+      sb.append("                _v = _row.get(_c)\n")
+      sb.append("                _values[_c].append(pd.NA if _v is None else int(_v))\n")
+      sb.append("    return {_c: pd.array(_v, dtype='Int64') for _c, _v in _values.items()}\n")
+      sb.append("\n")
+    }
+
     sb.append("def _texera_encode_ts_cols(df):\n")
     sb.append("    for _c in df.columns:\n")
     sb.append("        if pd.api.types.is_datetime64_any_dtype(df[_c]):\n")
@@ -284,6 +319,20 @@ object StandaloneRunner extends LazyLogging {
         doubleColumns(path).foreach { col =>
           sb.append(s"if ${py(col)} in in${n}df.columns:\n")
           sb.append(s"    in${n}df[${py(col)}] = in${n}df[${py(col)}].astype('float64')\n")
+        }
+        // Only where the reader lost the value: a column with no holes already
+        // came back exact, and replacing it would hand the operator a nullable
+        // dtype the run never had.
+        if (exactIntegers) integerColumns(path) match {
+          case Seq() => ()
+          case cols =>
+            val names = cols.map(py).mkString(", ")
+            sb.append(
+              s"for _c, _v in _texera_exact_ints(${py(path.toString)}, [$names]).items():\n"
+            )
+            sb.append(s"    if _c in in${n}df.columns and not pd.api.types.is_integer_dtype(")
+            sb.append(s"in${n}df[_c]):\n")
+            sb.append(s"        in${n}df[_c] = _v\n")
         }
     }
     // The variadic placeholder, bound here for the same reason the numbered ones
@@ -343,6 +392,12 @@ object StandaloneRunner extends LazyLogging {
   // column as a label (a trace name, a legend entry, hover text).
   private def doubleColumns(input: Path): Seq[String] =
     columnsOfType(input, AttributeType.DOUBLE)
+
+  /** The columns the sidecar declares integral, both widths: the loss is the same
+    * for either.
+    */
+  private def integerColumns(input: Path): Seq[String] =
+    columnsOfType(input, AttributeType.INTEGER) ++ columnsOfType(input, AttributeType.LONG)
 
   // STRING-typed column names, for the read_json dtype map above.
   private def stringColumns(input: Path): Seq[String] =

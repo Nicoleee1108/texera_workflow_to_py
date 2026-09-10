@@ -935,8 +935,12 @@ object TransformVerificationRunner {
       objectMapper
         .readValue(objectMapper.writeValueAsString(opDesc), opClass)
         .asInstanceOf[LogicalOp]
+    // A Python Path A builds its table with pandas, so a holed integer column is
+    // a float on that side too and the script must match it. A JVM Path A holds
+    // the tuple, and there the script has to be given the value back exactly.
+    val pathAIsPython = classOf[PythonOperatorDescriptor].isAssignableFrom(opClass)
     val (pathAOutputs, pathAOutputSchemas): (Map[PortIdentity, Path], Map[PortIdentity, Schema]) =
-      if (classOf[PythonOperatorDescriptor].isAssignableFrom(opClass)) {
+      if (pathAIsPython) {
         val r = PyOpExecHarness.execute(opDescForPathA, inputs = inputs, outputDir = actualDir)
         (r.outputs, r.outputSchemas)
       } else {
@@ -958,7 +962,8 @@ object TransformVerificationRunner {
       opDesc = opDesc,
       inputs = standaloneInputs,
       outputPortCount = outputPortCount,
-      workDir = workDir
+      workDir = workDir,
+      exactIntegers = !pathAIsPython
     )
 
     // The operator declares whether its output row order is meaningful via

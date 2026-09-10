@@ -323,9 +323,18 @@ object RegexTransformHandler extends TransformHandler {
     // nothing unless the rendering reads the declared type.
     val numberDir = testRoot.resolve("numbers")
     Files.createDirectories(numberDir)
-    val numberColumn = Seq(("a\"b\\c_n", AttributeType.INTEGER))
-    val numberRows: Seq[Seq[Any]] =
-      Seq(Seq[Any](6), Seq[Any](null), Seq[Any](7), Seq[Any](60), Seq[Any](16))
+    // `a"b\c_big` only rides along. It is past the float64 exact-integer window,
+    // and its column has a hole, so a reader that parses it through a float
+    // hands the operator 9007199254740992 where the engine still has ...993.
+    val numberColumn =
+      Seq(("a\"b\\c_n", AttributeType.INTEGER), ("a\"b\\c_big", AttributeType.LONG))
+    val numberRows: Seq[Seq[Any]] = Seq(
+      Seq[Any](6, 9007199254740993L),
+      Seq[Any](null, null),
+      Seq[Any](7, 1L),
+      Seq[Any](60, 2L),
+      Seq[Any](16, 3L)
+    )
     val numberInput = CuratedHandlers.writeFixture(
       numberDir.resolve("input_port_0.jsonl"),
       numberColumn,
