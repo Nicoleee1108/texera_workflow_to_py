@@ -53,6 +53,23 @@ class ArrowSourceOpDesc extends ScanSourceOpDesc with StandaloneCodeGenerator {
     // is not rounded on its way through a float.
     val read =
       s"""out1df = pd.read_feather($SourceFilePlaceholder, dtype_backend="numpy_nullable")"""
+    // The widths pandas keeps and Texera has no column for. A file states the
+    // width and the sign of each of its numbers, and pandas reads every one of
+    // them back, where a Texera column is a double or a 32-bit integer and
+    // nothing narrower. Left alone, a single-precision column summed to a
+    // different number on the two sides: 16777216 and 1 add to 16777217 as
+    // doubles and to 16777216 as floats. An unsigned column lands on the Texera
+    // type its own values need, which is the executor's rule too: one counting
+    // to 4294967295 has to be a long. See ParquetScanSourceOpDesc, which
+    // normalizes the same widths for the same reason.
+    val widths =
+      """|for _column, _values in out1df.items():
+         |    if _values.dtype == "Float32":
+         |        out1df[_column] = _values.astype("Float64")
+         |    elif _values.dtype in ("Int8", "Int16", "UInt8", "UInt16"):
+         |        out1df[_column] = _values.astype("Int32")
+         |    elif _values.dtype == "UInt32":
+         |        out1df[_column] = _values.astype("Int64")""".stripMargin
     // A timestamp column needs nothing here. The file names UTC and holds the
     // wall clock as UTC, so pd.read_feather and the executor read the same
     // reading off it — no zone of the reader's own enters either side. The other
@@ -66,13 +83,16 @@ class ArrowSourceOpDesc extends ScanSourceOpDesc with StandaloneCodeGenerator {
     // the API can still carry one, and `iloc` reads it from the end where `drop`
     // skips nothing and `take` keeps nothing.
     val window = (offset.map(_.max(0)), limit.map(_.max(0))) match {
-      case (Some(o), Some(l)) => Some(s"$o:${o + l}")
+      // The end of the window is counted in Long: two Ints the operator accepts
+      // can add up past what an Int holds, and the slice would come out negative
+      // and take the wrong rows. As in ParquetScanSourceOpDesc.
+      case (Some(o), Some(l)) => Some(s"$o:${o.toLong + l}")
       case (Some(o), None)    => Some(s"$o:")
       case (None, Some(l))    => Some(s":$l")
       case _                  => None
     }
 
-    (read +: window.map(w => s"out1df = out1df.iloc[$w].reset_index(drop=True)").toSeq)
+    (Seq(read, widths) ++ window.map(w => s"out1df = out1df.iloc[$w].reset_index(drop=True)"))
       .mkString("\n")
   }
 
