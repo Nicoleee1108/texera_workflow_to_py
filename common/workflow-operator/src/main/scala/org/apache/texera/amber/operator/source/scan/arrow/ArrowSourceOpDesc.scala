@@ -25,6 +25,8 @@ import org.apache.texera.amber.core.storage.DocumentFactory
 import org.apache.texera.amber.core.tuple.Schema
 import org.apache.texera.amber.core.virtualidentity.{ExecutionIdentity, WorkflowIdentity}
 import org.apache.texera.amber.core.workflow.{PhysicalOp, SchemaPropagationFunc}
+import org.apache.texera.amber.operator.StandaloneCodeGenerator
+import org.apache.texera.amber.operator.StandaloneCodeGenerator.SourceFilePlaceholder
 import org.apache.texera.amber.operator.source.scan.ScanSourceOpDesc
 import org.apache.texera.amber.util.ArrowUtils
 import org.apache.texera.amber.util.JSONUtils.objectMapper
@@ -38,9 +40,41 @@ import java.nio.file.{Files, StandardOpenOption}
 import scala.util.Using
 
 @JsonIgnoreProperties(value = Array("fileEncoding"))
-class ArrowSourceOpDesc extends ScanSourceOpDesc {
+class ArrowSourceOpDesc extends ScanSourceOpDesc with StandaloneCodeGenerator {
 
   fileTypeName = Option("Arrow")
+
+  override def standaloneSourcePath(): Option[String] = fileName
+
+  override def generateStandaloneCode(): String = {
+    // Arrow says of every value whether it is there, and a numpy column has
+    // nowhere to put that: a missing double and a stored NaN both land on NaN.
+    // The nullable dtypes keep a holed integer integral too, so a long past 2^53
+    // is not rounded on its way through a float.
+    val read =
+      s"""out1df = pd.read_feather($SourceFilePlaceholder, dtype_backend="numpy_nullable")"""
+    // A timestamp column needs nothing here. The file names UTC and holds the
+    // wall clock as UTC, so pd.read_feather and the executor read the same
+    // reading off it — no zone of the reader's own enters either side. The other
+    // scan sources have to name their date columns, CSV and JSONL carrying no
+    // types to go on, but Arrow states its own.
+    //
+    // The executor drops `offset` rows and then takes `limit` of them. Feather has
+    // no row-range read, so the same window is taken once the frame is in memory.
+    //
+    // Clamped first: the property editor refuses a negative, but a plan posted to
+    // the API can still carry one, and `iloc` reads it from the end where `drop`
+    // skips nothing and `take` keeps nothing.
+    val window = (offset.map(_.max(0)), limit.map(_.max(0))) match {
+      case (Some(o), Some(l)) => Some(s"$o:${o + l}")
+      case (Some(o), None)    => Some(s"$o:")
+      case (None, Some(l))    => Some(s":$l")
+      case _                  => None
+    }
+
+    (read +: window.map(w => s"out1df = out1df.iloc[$w].reset_index(drop=True)").toSeq)
+      .mkString("\n")
+  }
 
   @throws[IOException]
   override def getPhysicalOp(
