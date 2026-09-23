@@ -30,6 +30,7 @@ import org.apache.texera.amber.operator.{
   StandaloneCodeGenerator
 }
 import org.apache.texera.amber.operator.aggregate.AggregateOpDesc
+import org.apache.texera.amber.operator.binning.BinningOpDesc
 import org.apache.texera.amber.operator.dummy.DummyOpDesc
 import org.apache.texera.amber.operator.filter.SpecializedFilterOpDesc
 import org.apache.texera.amber.operator.sleep.SleepOpDesc
@@ -453,6 +454,7 @@ object TransformVerificationRunner {
         "column raises, and both paths raise the same error"
     )
     val emptyTableRaises = Seq(
+      classOf[BinningOpDesc],
       classOf[CandlestickChartOpDesc],
       classOf[ContourPlotOpDesc],
       classOf[ScatterMatrixChartOpDesc],
