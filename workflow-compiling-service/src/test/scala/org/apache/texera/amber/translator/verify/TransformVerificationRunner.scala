@@ -30,9 +30,11 @@ import org.apache.texera.amber.operator.{
   StandaloneCodeGenerator
 }
 import org.apache.texera.amber.operator.aggregate.AggregateOpDesc
+import org.apache.texera.amber.operator.binning.BinningOpDesc
 import org.apache.texera.amber.operator.dummy.DummyOpDesc
 import org.apache.texera.amber.operator.filter.SpecializedFilterOpDesc
 import org.apache.texera.amber.operator.sleep.SleepOpDesc
+import org.apache.texera.amber.operator.sort.SortOpDesc
 import org.apache.texera.amber.operator.split.SplitOpDesc
 import org.apache.texera.amber.operator.sklearn.SklearnPredictionOpDesc
 import org.apache.texera.amber.operator.sklearn.SklearnClassifierOpDesc
@@ -444,6 +446,27 @@ object TransformVerificationRunner {
       )
     )
 
+    // A table with no rows carries no columns in the engine, so these operators
+    // cannot find the columns they read and fail. In an exported script the empty
+    // frame keeps its columns, and the script handles it. The script is the more
+    // forgiving of the two, and copying the failure would only make it worse.
+    val noColumnsToRead = ByDesign(
+      "a table with no rows carries no columns in the engine, so the operator " +
+        "fails on the columns it reads; the exported script's empty frame keeps " +
+        "its columns and is handled"
+    )
+    val emptyTableRaises = Seq(
+      classOf[BarChartOpDesc],
+      classOf[BinningOpDesc],
+      classOf[CandlestickChartOpDesc],
+      classOf[ContourPlotOpDesc],
+      classOf[FilledAreaPlotOpDesc],
+      classOf[NetworkGraphOpDesc],
+      classOf[ScatterMatrixChartOpDesc],
+      classOf[SortOpDesc],
+      classOf[StripChartOpDesc]
+    ).map(NotRun(_, RunKind.EmptyTable, noColumnsToRead))
+
     Seq(
       // An enum whose legal values depend on a sibling field: flipping it alone
       // builds a config the curated fixture already covers properly.
@@ -486,7 +509,7 @@ object TransformVerificationRunner {
             "spliced a\"b fails at the conversion rather than at any escaping"
         )
       )
-    ) ++ denseOnly ++ noRowsToFit
+    ) ++ denseOnly ++ noRowsToFit ++ emptyTableRaises
   }
 
   /** Every kind of run withheld from this operator, with why. One entry per kind:
