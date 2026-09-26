@@ -205,13 +205,13 @@ def _coerce_field(raw: Any, attr_type: AttributeType) -> Any:
         return largebinary(str(raw))
     if attr_type == AttributeType.TIMESTAMP:
         # TupleIO writes java.sql.Timestamp.toString ("YYYY-MM-DD HH:MM:SS[.f]").
-        # The engine hands a worker the wall clock as an Arrow millisecond
-        # timestamp in UTC, which reaches the operator as an aware datetime cut
-        # to the millisecond. Read here without pandas, whose nanoseconds end
-        # in 2262 where the engine's years go on.
+        # The engine hands a worker the wall clock as a zoneless Arrow
+        # microsecond timestamp, which reaches the operator as a naive datetime
+        # cut to the microsecond. Read here without pandas, whose nanoseconds
+        # end in 2262 where the engine's years go on.
         date, _, fraction = str(raw).partition(".")
         return datetime.datetime.strptime(date, "%Y-%m-%d %H:%M:%S").replace(
-            microsecond=int((fraction + "000")[:3]) * 1000, tzinfo=datetime.timezone.utc
+            microsecond=int((fraction + "000000")[:6])
         )
     # Every type the schema can name is read above. A new one fails loud rather
     # than passing a string through as though it had been read.

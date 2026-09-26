@@ -254,8 +254,8 @@ class PyOpExecHarnessSpec extends AnyFlatSpec with Matchers {
     binaryCellKind(Array[Byte](0, 1, 2)) shouldBe "bytes"
   }
 
-  // The worker gets the wall clock as an Arrow millisecond timestamp in UTC, so
-  // the operator holds an aware datetime cut to the millisecond, and a year
+  // The worker gets the wall clock as a zoneless Arrow microsecond timestamp,
+  // so the operator holds a naive datetime cut to the microsecond, and a year
   // past pandas' nanosecond range reaches it all the same.
   it should "hand a timestamp to the operator as the worker hands it" in {
     val dir = Files.createTempDirectory("py-op-harness-timestamp-")
@@ -277,7 +277,7 @@ class PyOpExecHarnessSpec extends AnyFlatSpec with Matchers {
     TupleIO
       .readTuples(out, TupleIO.readSchemaSidecar(out))
       .map(_.getField[String]("kind"))
-      .toSeq shouldBe Seq("2500-01-01 00:00:00.123000+00:00")
+      .toSeq shouldBe Seq("2500-01-01 00:00:00.123456")
   }
 
   private val someObject = "s3://a-bucket/a/large/object"
