@@ -25,7 +25,9 @@ import org.apache.texera.amber.core.tuple.{Attribute, AttributeType, AttributeTy
 import org.apache.texera.amber.core.virtualidentity.{ExecutionIdentity, WorkflowIdentity}
 import org.apache.texera.amber.operator.LogicalOp
 import org.apache.texera.amber.operator.metadata.OperatorGroupConstants
+import org.apache.texera.amber.operator.tags.IntegrationTest
 import org.apache.texera.amber.util.JSONUtils.objectMapper
+import org.scalatest.Tag
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
@@ -36,6 +38,8 @@ import scala.io.Source
 import scala.util.Try
 
 class TypeCastingOpDescSpec extends AnyFlatSpec with Matchers {
+
+  private val NeedsPythonPackages = Tag(classOf[IntegrationTest].getName)
 
   private val workflowId = WorkflowIdentity(1L)
   private val executionId = ExecutionIdentity(1L)
@@ -112,7 +116,7 @@ class TypeCastingOpDescSpec extends AnyFlatSpec with Matchers {
       .map(v => if (v == null) "null" else v.toString)
       .getOrElse("error")
 
-  it should "cast to boolean the way AttributeTypeUtils does" in {
+  it should "cast to boolean the way AttributeTypeUtils does" taggedAs NeedsPythonPackages in {
     val python = resolvePython().getOrElse(
       cancel("No runnable python executable (udf.conf python.path, python3, python, py)")
     )
@@ -180,7 +184,7 @@ class TypeCastingOpDescSpec extends AnyFlatSpec with Matchers {
     ("flag", "bool", Seq(Boolean.box(true), Boolean.box(false)))
   )
 
-  it should "cast to string the way AttributeTypeUtils does" in {
+  it should "cast to string the way AttributeTypeUtils does" taggedAs NeedsPythonPackages in {
     val python = resolvePython().getOrElse(
       cancel("No runnable python executable (udf.conf python.path, python3, python, py)")
     )
@@ -274,7 +278,7 @@ class TypeCastingOpDescSpec extends AnyFlatSpec with Matchers {
   private def cellsOf(out: String): Seq[String] =
     out.linesIterator.filter(_.startsWith("cell ")).map(_.drop("cell ".length)).toSeq
 
-  it should "cast text to a timestamp the way AttributeTypeUtils does" in {
+  it should "cast text to a timestamp the way AttributeTypeUtils does" taggedAs NeedsPythonPackages in {
     val python = resolvePython().getOrElse(
       cancel("No runnable python executable (udf.conf python.path, python3, python, py)")
     )
@@ -341,7 +345,7 @@ class TypeCastingOpDescSpec extends AnyFlatSpec with Matchers {
     "2024-03-05 14:09:07.123456001"
   )
 
-  it should "keep the resolution a timestamp column arrived in" in {
+  it should "keep the resolution a timestamp column arrived in" taggedAs NeedsPythonPackages in {
     val python = resolvePython().getOrElse(
       cancel("No runnable python executable (udf.conf python.path, python3, python, py)")
     )
@@ -390,7 +394,7 @@ class TypeCastingOpDescSpec extends AnyFlatSpec with Matchers {
   // parse strictly: the engine accepts a set of formats no single pandas call
   // states, so text neither can read leaves an empty cell instead of ending an
   // exported run halfway.
-  it should "leave a cell it cannot read empty rather than refusing it" in {
+  it should "leave a cell it cannot read empty rather than refusing it" taggedAs NeedsPythonPackages in {
     val python = resolvePython().getOrElse(
       cancel("No runnable python executable (udf.conf python.path, python3, python, py)")
     )
