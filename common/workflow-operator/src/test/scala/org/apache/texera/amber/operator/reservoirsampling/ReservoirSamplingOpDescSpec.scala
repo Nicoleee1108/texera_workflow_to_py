@@ -22,9 +22,11 @@ package org.apache.texera.amber.operator.reservoirsampling
 import com.typesafe.config.ConfigFactory
 import org.apache.texera.amber.core.executor.OpExecWithClassName
 import org.apache.texera.amber.core.virtualidentity.{ExecutionIdentity, WorkflowIdentity}
+import org.apache.texera.amber.operator.tags.IntegrationTest
 import org.apache.texera.amber.operator.{LogicalOp, SamplingHelpers}
 import org.apache.texera.amber.operator.metadata.OperatorGroupConstants
 import org.apache.texera.amber.util.JSONUtils.objectMapper
+import org.scalatest.Tag
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
@@ -35,6 +37,8 @@ import scala.io.Source
 import scala.util.Try
 
 class ReservoirSamplingOpDescSpec extends AnyFlatSpec with Matchers {
+
+  private val NeedsPythonPackages = Tag(classOf[IntegrationTest].getName)
 
   private val workflowId = WorkflowIdentity(1L)
   private val executionId = ExecutionIdentity(1L)
@@ -91,7 +95,7 @@ class ReservoirSamplingOpDescSpec extends AnyFlatSpec with Matchers {
   // skips the fill branch and hands nextInt a bound of zero, which Java refuses.
   // The script has to refuse it there too. Answering with an empty table would
   // report a result the run never produced.
-  it should "fail on the first row when the reservoir holds nothing" in {
+  it should "fail on the first row when the reservoir holds nothing" taggedAs NeedsPythonPackages in {
     val python = resolvePython().getOrElse(cancel("No runnable python executable"))
     if (!canImportPandas(python)) cancel(s"'$python' cannot import pandas")
 

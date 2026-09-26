@@ -25,6 +25,8 @@ import org.apache.texera.amber.core.tuple.{Attribute, AttributeType, Schema}
 import org.apache.texera.amber.core.virtualidentity.{ExecutionIdentity, WorkflowIdentity}
 import org.apache.texera.amber.core.workflow.PortIdentity
 import org.apache.texera.amber.operator.metadata.OperatorGroupConstants
+import org.apache.texera.amber.operator.tags.IntegrationTest
+import org.scalatest.Tag
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
@@ -35,6 +37,8 @@ import scala.io.Source
 import scala.util.Try
 
 class IfOpDescSpec extends AnyFlatSpec with Matchers {
+
+  private val NeedsPythonPackages = Tag(classOf[IntegrationTest].getName)
 
   private val workflowId = WorkflowIdentity(1L)
   private val executionId = ExecutionIdentity(1L)
@@ -93,7 +97,7 @@ class IfOpDescSpec extends AnyFlatSpec with Matchers {
 
   // The engine picks the route from a State message, which the verification
   // harness has no channel for, so False is only reachable here.
-  it should "send the rows to True by default and to False when the switch is off" in {
+  it should "send the rows to True by default and to False when the switch is off" taggedAs NeedsPythonPackages in {
     val python = resolvePythonExecutable().getOrElse(cancel("No runnable python executable"))
     if (!canImportPandas(python)) cancel(s"'$python' cannot import pandas")
 
