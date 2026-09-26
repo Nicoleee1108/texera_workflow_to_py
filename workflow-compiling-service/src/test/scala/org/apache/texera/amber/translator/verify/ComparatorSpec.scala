@@ -507,6 +507,25 @@ class ComparatorSpec extends AnyFlatSpec with Matchers {
     }
   }
 
+  // A Python operator gets each timestamp labelled UTC, and the script holds the
+  // same wall clock with no zone, so one chart writes `+00:00` where the other
+  // writes nothing. Only a zero offset is dropped, and the time still has to agree.
+  it should "read a UTC offset on a chart's time as the same wall clock" in {
+    val dir = Files.createTempDirectory("comparator-spec-plotly-utc-")
+    def chart(name: String, time: String): Path =
+      writeLines(dir, name, Seq(s"""{"data": [{"x": ["$time"]}], "layout": {}}"""))
+    val actual = writeLines(
+      dir,
+      "actual.jsonl",
+      Seq("""{"json-content": {"data": [{"x": ["2024-01-07T00:00:00+00:00"]}], "layout": {}}}""")
+    )
+
+    val (same, said) = runPlotly(actual, chart("same.json", "2024-01-07T00:00:00"))
+    withClue(s"compare.py said:\n$said") { same shouldBe 0 }
+    runPlotly(actual, chart("hour.json", "2024-01-07T05:00:00"))._1 should not be 0
+    runPlotly(actual, chart("offset.json", "2024-01-07T00:00:00+05:00"))._1 should not be 0
+  }
+
   // `bool` is a subclass of `int` in Python, so a boolean setting fell into the
   // numeric branch and True compared equal to 1. A column whose declared type
   // changed from boolean to integer reaches a figure as exactly that.
