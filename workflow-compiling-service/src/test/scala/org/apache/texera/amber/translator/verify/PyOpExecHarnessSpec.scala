@@ -28,6 +28,7 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
 import java.nio.file.Files
+import java.sql.Timestamp
 import java.util.Base64
 import scala.sys.process._
 
@@ -71,6 +72,19 @@ class PyOpExecHarnessSpec extends AnyFlatSpec with Matchers {
         |        yield row
         |        row["x"] = 2
         |        yield row
+        |""".stripMargin
+  }
+
+  /** Reports the timestamp it was handed, as Python prints it. */
+  private class TimestampTextOpDesc extends BinaryTypeOpDesc {
+    override def generatePythonCode(): String =
+      """from pytexera import *
+        |
+        |class ProcessTupleOperator(UDFOperatorV2):
+        |
+        |    @overrides
+        |    def process_tuple(self, tuple_: Tuple, port: int) -> Iterator[Optional[TupleLike]]:
+        |        yield {"kind": str(tuple_["ts"])}
         |""".stripMargin
   }
 
@@ -238,6 +252,32 @@ class PyOpExecHarnessSpec extends AnyFlatSpec with Matchers {
 
   it should "hand any other binary cell to the operator as bytes" in {
     binaryCellKind(Array[Byte](0, 1, 2)) shouldBe "bytes"
+  }
+
+  // The worker gets the wall clock as an Arrow millisecond timestamp in UTC, so
+  // the operator holds an aware datetime cut to the millisecond, and a year
+  // past pandas' nanosecond range reaches it all the same.
+  it should "hand a timestamp to the operator as the worker hands it" in {
+    val dir = Files.createTempDirectory("py-op-harness-timestamp-")
+    val inputSchema = Schema().add(new Attribute("ts", AttributeType.TIMESTAMP))
+    val input = dir.resolve("input_port_0.jsonl")
+    val row = Tuple
+      .builder(inputSchema)
+      .add("ts", AttributeType.TIMESTAMP, Timestamp.valueOf("2500-01-01 00:00:00.123456789"))
+      .build()
+    TupleIO.writeTuples(input, Iterator(row), inputSchema)
+
+    val result = PyOpExecHarness.execute(
+      new TimestampTextOpDesc,
+      inputs = Map(PortIdentity(0) -> input),
+      outputDir = dir.resolve("actual")
+    )
+
+    val out = result.outputs(PortIdentity(0))
+    TupleIO
+      .readTuples(out, TupleIO.readSchemaSidecar(out))
+      .map(_.getField[String]("kind"))
+      .toSeq shouldBe Seq("2500-01-01 00:00:00.123000+00:00")
   }
 
   private val someObject = "s3://a-bucket/a/large/object"
