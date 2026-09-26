@@ -83,7 +83,6 @@ A mismatch is exit 1 with the diff on `stderr`, mirroring the CLI's nonzero
 exit so the Scala side's ComparatorMismatchException path is unchanged. A
 comparison error never kills the server; only closing stdin (EOF) ends it.
 """
-import re
 import sys
 
 # pandas is imported where it is used, not here: the --plotly comparison needs
@@ -646,24 +645,7 @@ def _plots_equal(actual, expected) -> bool:
         return len(actual) == len(expected) and all(
             _plots_equal(left, right) for left, right in zip(actual, expected)
         )
-    if isinstance(actual, str) and isinstance(expected, str):
-        return _wall_clock(actual) == _wall_clock(expected)
     return actual == expected
-
-
-# A date and time written with an offset of zero, as plotly writes one that
-# carries UTC.
-_UTC_DATETIME = re.compile(r"(\d{4}-\d\d-\d\d[T ]\d\d:\d\d:\d\d(?:\.\d+)?)(?:\+00:00|Z)")
-
-
-def _wall_clock(text: str) -> str:
-    """The text with a UTC offset dropped from any date and time in it.
-
-    The engine hands a Python operator each timestamp labelled UTC, while the
-    exported script, like the JVM operators, holds the same wall clock with no
-    zone. A chart drawn from one writes `+00:00` after the time and the other
-    writes nothing; the date and the time still have to agree."""
-    return _UTC_DATETIME.sub(r"\1", text)
 
 
 def _run_plotly_comparison(actual_path, expected_path) -> "str | None":
