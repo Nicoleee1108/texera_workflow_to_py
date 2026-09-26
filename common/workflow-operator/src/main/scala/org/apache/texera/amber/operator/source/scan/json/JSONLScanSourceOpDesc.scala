@@ -27,7 +27,7 @@ import org.apache.texera.amber.core.tuple.AttributeTypeUtils.inferSchemaFromRows
 import org.apache.texera.amber.core.tuple.{Attribute, AttributeType, Schema}
 import org.apache.texera.amber.core.virtualidentity.{ExecutionIdentity, WorkflowIdentity}
 import org.apache.texera.amber.core.workflow.{PhysicalOp, SchemaPropagationFunc}
-import org.apache.texera.amber.operator.StandaloneCodeGenerator
+import org.apache.texera.amber.operator.{StandaloneCodeGenerator, StandaloneHelpers}
 import org.apache.texera.amber.operator.StandaloneCodeGenerator.SourceFilePlaceholder
 import org.apache.texera.amber.operator.source.scan.ScanSourceOpDesc
 import org.apache.texera.amber.pybuilder.PythonTemplateBuilder.pyStringLiteral
@@ -94,24 +94,11 @@ class JSONLScanSourceOpDesc extends ScanSourceOpDesc with StandaloneCodeGenerato
     // JSON has no timestamp of its own, so both readers infer from the text and
     // do not infer alike: the schema below tries TIMESTAMP and parses what it
     // can, while pd.read_json guesses from the COLUMN NAME (anything ending
-    // "_at" or "_time", anything called "date") and leaves the rest as text.
-    // Naming the columns this operator decided were timestamps settles both
-    // halves — the ones it misses and the ones it would have taken on its own.
-    // An unreadable schema leaves the argument off rather than failing the
-    // export.
-    val dateColumns: Seq[String] =
-      Try(sourceSchema()).toOption.toSeq.flatMap(
-        _.getAttributes
-          .filter(_.getType == AttributeType.TIMESTAMP)
-          .map(a => pyStringLiteral(a.getName))
-      )
-    // Under flattening the schema names a nested value for the column the
-    // flattening is about to build, and read_json is asked about that name
-    // while the file still holds the object around it. It finds no such column,
-    // converts nothing, and the value reaches the plan as text, where a sort
-    // puts a 2025 date before a 2024 one. Those columns are converted once the
-    // frame that holds them exists, below.
-    if (!flatten) readArgs += s"convert_dates=[${dateColumns.mkString(", ")}]"
+    // "_at" or "_time", anything called "date"). Every column is read as it
+    // was written, and the ones this operator decided were timestamps are
+    // parsed below, the way it parses them, once the frame holds them: under
+    // flattening a nested value is no column until the flattening builds it.
+    readArgs += "convert_dates=False"
 
     val readExpr = s"pd.read_json(${readArgs.mkString(", ")})"
     // json_normalize opens a nested object and leaves a nested array whole, so
@@ -152,14 +139,10 @@ class JSONLScanSourceOpDesc extends ScanSourceOpDesc with StandaloneCodeGenerato
       }
     }
 
-    if (flatten) {
-      // A format is inferred for each value on its own, the way this operator's
-      // own parser reads each value on its own, so a column whose lines wrote
-      // the same instant two ways still converts whole.
-      dateColumns.foreach { nameLit =>
-        lines += s"""out1df[$nameLit] = pd.to_datetime(out1df[$nameLit], format="mixed")"""
-      }
-    }
+    Try(sourceSchema()).toOption
+      .map(StandaloneCodeGenerator.readTimestampsAsTheEngine("out1df", _))
+      .filter(_.nonEmpty)
+      .foreach(lines += _)
 
     // pandas has no plain boolean that carries a hole, so a record missing the
     // key widens the column to floats, and a later cast to text read 1.0 and 0.0
@@ -215,6 +198,8 @@ class JSONLScanSourceOpDesc extends ScanSourceOpDesc with StandaloneCodeGenerato
   override def standaloneHelpers(): Seq[String] =
     (if (flatten) Seq(JSONLScanSourceOpDesc.JsonFlatten) else Seq.empty) ++
       (if (columnCount(AttributeType.STRING) > 0) Seq(JSONLScanSourceOpDesc.JsonText)
+       else Seq.empty) ++
+      (if (columnCount(AttributeType.TIMESTAMP) > 0) Seq(StandaloneHelpers.AttributeCasts)
        else Seq.empty)
 
   override def standaloneImports(): Seq[String] = {
