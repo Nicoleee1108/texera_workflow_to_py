@@ -131,7 +131,9 @@ object StandaloneHelpers {
       |    # nanoseconds pandas parses into by default, which reach 1677 to 2262:
       |    # the engine holds a java.sql.Timestamp, where the year 2500 is an
       |    # ordinary moment and emptying it would answer for a row the run itself
-      |    # had no trouble with. A column that is already a moment is handed back
+      |    # had no trouble with. Text is cut to the millisecond, because
+      |    # DateParserUtils reads it into a java.util.Date, which counts no finer.
+      |    # A column that is already a moment is handed back
       |    # at the resolution it arrived in instead, because parseField returns a
       |    # java.sql.Timestamp untouched and that class counts nanoseconds.
       |    #
@@ -163,7 +165,7 @@ object StandaloneHelpers {
       |            return None
       |        if parsed.tzinfo is not None:
       |            parsed = parsed.astimezone(tzlocal()).replace(tzinfo=None)
-      |        return parsed
+      |        return parsed.replace(microsecond=parsed.microsecond // 1000 * 1000)
       |
       |    return s.map(_one).astype("datetime64[us]")
       |

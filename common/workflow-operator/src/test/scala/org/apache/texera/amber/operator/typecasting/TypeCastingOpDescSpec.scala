@@ -252,13 +252,17 @@ class TypeCastingOpDescSpec extends AnyFlatSpec with Matchers {
   // Two of them state an offset, which DateParserUtils reads and java.sql.Timestamp
   // then keeps no zone for: the moment is held as the wall clock of the machine's
   // own zone. The expectation is taken from the engine rather than written down,
-  // so the pair says the same thing wherever the suite runs.
+  // so the pair says the same thing wherever the suite runs. Two carry digits
+  // past the millisecond, which DateParserUtils reads into a java.util.Date and
+  // so drops.
   private val timestampCases = Seq(
     "2024-03-05 14:09:07",
     "2024-03-05T14:09:07",
     "March 5, 2024",
     "2024-03-05T14:09:07Z",
     "2024-03-05T14:09:07+05:30",
+    "2024-03-05 14:09:07.123456",
+    "2024-03-05 14:09:07.9999",
     "1677-09-22 00:12:44",
     "2262-04-11 23:47:16",
     "2500-01-01 00:00:00",
@@ -266,11 +270,12 @@ class TypeCastingOpDescSpec extends AnyFlatSpec with Matchers {
     "9999-12-31 23:59:59"
   )
 
-  /** `java.sql.Timestamp.toString` always writes a fraction where Python writes
-    * one only when there is something to write, and every case here lands on a
-    * whole second.
+  /** A printed moment as the wall clock it names. `java.sql.Timestamp.toString`
+    * trims its fraction and writes ".0" for none, where Python pads it to six
+    * digits or leaves it out.
     */
-  private def withoutFraction(text: String): String = text.stripSuffix(".0")
+  private def moment(text: String): Any =
+    Try(java.time.LocalDateTime.parse(text.replace(' ', 'T'))).getOrElse(text)
 
   /** The cells the driver printed, told apart from anything pandas wrote to
     * stderr, which this process merges into the same stream.
@@ -317,14 +322,13 @@ class TypeCastingOpDescSpec extends AnyFlatSpec with Matchers {
     // Only the printed cells: pandas writes a parsing warning to stderr, which
     // this process merges into the same stream.
     val fromScript = cellsOf(out)
-    val fromEngine =
-      timestampCases.map(v => withoutFraction(engineAnswer(v, AttributeType.TIMESTAMP)))
+    val fromEngine = timestampCases.map(v => engineAnswer(v, AttributeType.TIMESTAMP))
     withClue(s"cases=${timestampCases.mkString(", ")}\nscript said $fromScript\n") {
-      fromScript shouldBe fromEngine
+      fromScript.map(moment) shouldBe fromEngine.map(moment)
     }
     // The rows that made the issue: a moment either side of the nanosecond edge.
-    fromEngine.takeRight(3) shouldBe
-      Seq("2500-01-01 00:00:00", "1500-06-15 08:30:00", "9999-12-31 23:59:59")
+    fromEngine.takeRight(3).map(moment) shouldBe
+      Seq("2500-01-01 00:00:00", "1500-06-15 08:30:00", "9999-12-31 23:59:59").map(moment)
     // And the pair that states an offset, which reaches the same moment by two
     // spellings: five and a half hours apart in the text, and so in the reading.
     val zoned = fromScript.slice(3, 5)
