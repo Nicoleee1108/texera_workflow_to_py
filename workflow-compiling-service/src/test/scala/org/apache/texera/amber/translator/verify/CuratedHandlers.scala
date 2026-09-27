@@ -516,11 +516,6 @@ object HashJoinTransformHandler extends TransformHandler {
   * pairs a target type with a source column that type accepts, holding a value
   * that round-trips identically through JVM `AttributeTypeUtils` and through the
   * generated pandas.
-  *
-  * TIMESTAMP is left out: the two runtimes serialize one differently to JSONL,
-  * native as an ISO string and pandas as epoch millis, so the comparator flags a
-  * representation mismatch for an identical instant. That is a harness-wide gap
-  * rather than a TypeCasting defect.
   */
 object TypeCastingTransformHandler extends TransformHandler {
   override val opDescClass: Class[_ <: LogicalOp] = classOf[TypeCastingOpDesc]
@@ -539,7 +534,7 @@ object TypeCastingTransformHandler extends TransformHandler {
       // since Path A would end before there is anything to compare; that half
       // is pinned in TypeCastingOpDescSpec.
       ("str_to_bool", AttributeType.STRING), // "true"/"0"     → BOOLEAN
-      // The other direction, which the five above cannot ask: the engine writes
+      // The other direction, which the casts above cannot ask: the engine writes
       // "true" where Python's str() writes "True".
       ("bool_to_str", AttributeType.BOOLEAN), // true/false     → STRING
       // Named by two units at once. `tupleCasting` takes a Map, so the second
