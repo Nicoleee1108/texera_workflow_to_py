@@ -321,8 +321,8 @@ class TypeCastingOpDescSpec extends AnyFlatSpec with Matchers {
     process.waitFor(120, TimeUnit.SECONDS)
     withClue(s"python said:\n$out\nscript:\n$driver") { process.exitValue() shouldBe 0 }
 
-    // Only the printed cells: pandas writes a parsing warning to stderr, which
-    // this process merges into the same stream.
+    // Only the printed cells, so nothing else written to the merged stderr is
+    // read as one.
     val fromScript = cellsOf(out)
     val fromEngine = timestampCases.map(v => engineAnswer(v, AttributeType.TIMESTAMP))
     withClue(s"cases=${timestampCases.mkString(", ")}\nscript said $fromScript\n") {
