@@ -496,7 +496,11 @@ object CanonicalSourceFixture {
     new Attribute("a\"b\\c_region", AttributeType.STRING) -> (i => Seq("NA", "EU", "APAC")(i % 3)),
     new Attribute("a\"b\\c_nanos", AttributeType.TIMESTAMP) -> (i =>
       java.sql.Timestamp.valueOf(
-        Seq("2024-01-01 00:00:00.123456789", "2024-06-30 23:59:59.999999999", "2024-03-05 14:09:07.5")(
+        Seq(
+          "2024-01-01 00:00:00.123456789",
+          "2024-06-30 23:59:59.999999999",
+          "2024-03-05 14:09:07.5"
+        )(
           i % 3
         )
       )
