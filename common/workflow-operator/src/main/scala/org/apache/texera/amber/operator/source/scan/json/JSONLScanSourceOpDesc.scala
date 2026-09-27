@@ -140,7 +140,7 @@ class JSONLScanSourceOpDesc extends ScanSourceOpDesc with StandaloneCodeGenerato
     }
 
     Try(sourceSchema()).toOption
-      .map(StandaloneCodeGenerator.readTimestampsAsTheEngine("out1df", _))
+      .map(StandaloneCodeGenerator.parseTimestamps("out1df", _))
       .filter(_.nonEmpty)
       .foreach(lines += _)
 
