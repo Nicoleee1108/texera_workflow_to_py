@@ -487,10 +487,20 @@ object CanonicalSourceFixture {
     * `a"b\c_big` holds odd integers past 2^53, none of which a float can hold, so
     * a reader that widens the column through one rounds every value. `a"b\c_region`
     * holds the text `NA`, which pandas reads as missing unless told not to.
+    * `a"b\c_nanos` holds digits past the millisecond, which a reader keeps or cuts
+    * as the engine's own does. It stays out of the canonical table, where a
+    * Python operator is handed a datetime, which counts no finer than microseconds.
     */
   private val sourceColumns: Seq[(Attribute, Int => AnyRef)] = Seq(
     new Attribute("a\"b\\c_big", AttributeType.LONG) -> (i => Long.box(9007199254740993L + 2 * i)),
-    new Attribute("a\"b\\c_region", AttributeType.STRING) -> (i => Seq("NA", "EU", "APAC")(i % 3))
+    new Attribute("a\"b\\c_region", AttributeType.STRING) -> (i => Seq("NA", "EU", "APAC")(i % 3)),
+    new Attribute("a\"b\\c_nanos", AttributeType.TIMESTAMP) -> (i =>
+      java.sql.Timestamp.valueOf(
+        Seq("2024-01-01 00:00:00.123456789", "2024-06-30 23:59:59.999999999", "2024-03-05 14:09:07.5")(
+          i % 3
+        )
+      )
+    )
   )
 
   val schema: Schema =
