@@ -159,9 +159,8 @@ class HuggingFaceIrisLogisticRegressionOpDesc
        |_classes = []
        |_probs = []
        |for _length, _width in zip(out1df[$lengthLit], out1df[$widthLit]):
-       |    # The operator's guard, except that an empty cell reaches a frame read
-       |    # from JSON as a NaN rather than as the None a Tuple hands over, so this
-       |    # side asks pandas, which answers for both.
+       |    # The operator's guard: pandas answers for the NaN a frame read from
+       |    # JSON holds and for the None a Tuple hands over.
        |    if pd.isna(_length) or pd.isna(_width):
        |        _classes.append(None)
        |        _probs.append(None)
