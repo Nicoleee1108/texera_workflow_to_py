@@ -1073,6 +1073,48 @@ object SklearnPredictionTransformHandler extends TransformHandler {
       FittedModelFixture.write(testRoot, "DecisionTreeClassifier", FittedModelFixture.label)
     )
   }
+
+  /** The ground-truth branch over rows missing a feature, which the nulls case
+    * does not reach since it leaves the optional knob unfilled; and two model
+    * rows, of which the engine predicts with the last.
+    */
+  override def extraScenarios(
+      testRoot: Path
+  ): Seq[(String, LogicalOp, Map[PortIdentity, Path])] = {
+    def in(name: String): Path = Files.createDirectories(testRoot.resolve(name))
+    val tree = "DecisionTreeClassifier(random_state=0)"
+    val label = FittedModelFixture.label
+    def prediction(groundTruth: String): SklearnPredictionOpDesc = {
+      val desc = new SklearnPredictionOpDesc()
+      desc.model = FittedModelFixture.model
+      desc.resultAttribute = "prediction"
+      desc.groundTruthAttribute = groundTruth
+      desc
+    }
+    Seq(
+      (
+        "ground truth named, a feature missing",
+        prediction(label),
+        FittedModelFixture.writeModels(
+          in("ground-truth-holes"),
+          Seq(tree),
+          label,
+          scored = Some(
+            Seq(Seq("versicolor", 5.0, 1.8), Seq("setosa", null, 0.2), Seq("virginica", 6.0, null))
+          )
+        )
+      ),
+      (
+        "two model rows",
+        prediction(""),
+        FittedModelFixture.writeModels(
+          in("two-models"),
+          Seq(tree, "DecisionTreeClassifier(max_depth=1, random_state=0)"),
+          label
+        )
+      )
+    )
+  }
 }
 
 /** Testing scores a fitted model on its model port. `isRegression` has to match
