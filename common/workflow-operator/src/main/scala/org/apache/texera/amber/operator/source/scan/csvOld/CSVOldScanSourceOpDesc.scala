@@ -145,7 +145,7 @@ class CSVOldScanSourceOpDesc extends ScanSourceOpDesc with StandaloneCodeGenerat
       Seq(
         readCall,
         s"out1df.columns = [${schemaNames.mkString(", ")}]",
-        StandaloneCodeGenerator.readTimestampsAsTheEngine("out1df", sourceSchema()),
+        StandaloneCodeGenerator.parseTimestamps("out1df", sourceSchema()),
         StandaloneCodeGenerator.typeAnEmptyRead("out1df", sourceSchema())
       ).filter(_.nonEmpty).mkString("\n")
     else if (hasHeader) readCall

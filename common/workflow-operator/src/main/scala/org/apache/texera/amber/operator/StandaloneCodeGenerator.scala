@@ -161,7 +161,7 @@ object StandaloneCodeGenerator {
     * row states its own format, any year reads, and the reading is cut to the
     * millisecond.
     */
-  def readTimestampsAsTheEngine(frame: String, schema: Schema): String =
+  def parseTimestamps(frame: String, schema: Schema): String =
     schema.getAttributes
       .filter(_.getType == AttributeType.TIMESTAMP)
       .map { a =>
