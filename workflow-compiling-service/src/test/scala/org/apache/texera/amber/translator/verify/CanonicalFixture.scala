@@ -130,8 +130,8 @@ object CanonicalFixture extends SharedFixture {
     // reach, last so no column-picking knob comes to them before the others.
     new Attribute("edge_double", AttributeType.DOUBLE), // 1.0E20 and 1.0E-4 beside
     // ordinary numbers: Java writes a double past 1e7 or under 1e-3 in E notation
-    new Attribute("edge_ts", AttributeType.TIMESTAMP), // years 1600, 2500 and 9999:
-    // a Timestamp holds them, where pandas' nanoseconds stop at 1677 and 2262
+    new Attribute("edge_ts", AttributeType.TIMESTAMP), // years 1600, 2500 and 9999,
+    // and 1677 and 2262 at pandas' own edges: a Timestamp holds every one of them
     new Attribute("digits", AttributeType.STRING) // text made only of digits, "001"
     // among them, which a reader left to infer takes for a number
   )
