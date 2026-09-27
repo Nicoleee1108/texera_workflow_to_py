@@ -607,7 +607,7 @@ object TransformVerificationRunner {
   final case class Flagged(reason: String) extends Disposition
 
   /** When `VERIFY_FORCE_AUTO=1`, ignore CuratedHandlers so every operator is
-    * exercised through the shared-CSV auto path instead. Lets us measure how
+    * exercised through the shared-table auto path instead. Lets us measure how
     * much of the hand-written curated set the auto tier can now replace: an op
     * that stays RUNNABLE/passes under force-auto no longer needs its curated
     * handler.
