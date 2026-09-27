@@ -221,12 +221,6 @@ object SpecializedFilterTransformHandler extends TransformHandler {
   }
 }
 
-/** Handler for `DistinctOpDesc`. The canonical auto-fixture is all-distinct
-  * (the name column is unique by invariant), so it never exercises dedup.
-  * This 5-row table repeats two rows so both paths must actually drop
-  * duplicates, and both keep the first occurrence: JVM LinkedHashSet and pandas
-  * `drop_duplicates(keep="first")` agree on which of a pair survives.
-  */
 /**
   * Curated CONFIG for [[ProjectionOpDesc]] over the shared table. Its `attributes`
   * list is not declared `required`, so the auto tier starts it empty the way the UI
@@ -246,24 +240,19 @@ object ProjectionTransformHandler extends TransformHandler {
   }
 }
 
+/** Handler for `DistinctOpDesc`. Every row of the shared table is distinct, since
+  * `id` is, so it never exercises dedup. Two of its columns, `name` and the 0/1
+  * species, repeat whole rows, so both paths must actually drop duplicates, and
+  * both keep the first occurrence: JVM LinkedHashSet and pandas
+  * `drop_duplicates(keep="first")` agree on which of a pair survives.
+  */
 object DistinctTransformHandler extends TransformHandler {
   override val opDescClass: Class[_ <: LogicalOp] = classOf[DistinctOpDesc]
 
   override def fixture(testRoot: Path): (LogicalOp, Map[PortIdentity, Path]) = {
-    val columns = Seq(
-      ("id", AttributeType.INTEGER),
-      ("name", AttributeType.STRING)
-    )
-    val rows = Seq(
-      Seq[Any](1, "a"),
-      Seq[Any](2, "b"),
-      Seq[Any](1, "a"), // duplicate of row 0
-      Seq[Any](3, "c"),
-      Seq[Any](2, "b") // duplicate of row 1
-    )
-    val inputPath =
-      CuratedHandlers.writeFixture(testRoot.resolve("input_port_0.jsonl"), columns, rows)
-    (new DistinctOpDesc(), Map(PortIdentity(0) -> inputPath))
+    val repeating =
+      ProjectedFixture(CanonicalFixture, Seq("name", "a\"b\\c_species"), Set.empty)
+    (new DistinctOpDesc(), repeating.writeInputs(testRoot, 1))
   }
 }
 
@@ -346,15 +335,14 @@ object RegexTransformHandler extends TransformHandler {
       numberRows
     )
 
-    // A boolean column. The engine matches "true", where a hole leaves pandas
-    // holding 1.0. Case-sensitive on purpose, since case is half the difference.
-    val boolDir = testRoot.resolve("booleans")
-    Files.createDirectories(boolDir)
-    val boolColumn = Seq(("a\"b\\c_b", AttributeType.BOOLEAN))
-    val boolRows: Seq[Seq[Any]] =
-      Seq(Seq[Any](true), Seq[Any](false), Seq[Any](null), Seq[Any](true))
-    val boolInput =
-      CuratedHandlers.writeFixture(boolDir.resolve("input_port_0.jsonl"), boolColumn, boolRows)
+    // The shared table's boolean column, holed. The engine matches "true", where
+    // the hole leaves pandas holding 1.0. Case-sensitive on purpose, since case
+    // is half the difference.
+    val boolInput = CanonicalFixture.write(
+      Files.createDirectories(testRoot.resolve("booleans")),
+      1,
+      withGaps = true
+    )
 
     Seq(
       (
@@ -374,8 +362,8 @@ object RegexTransformHandler extends TransformHandler {
       ),
       (
         "regex=^true$ on a boolean column",
-        regexOp("a\"b\\c_b", "^true$", caseInsensitive = false),
-        Map(PortIdentity(0) -> boolInput)
+        regexOp("a\"b\\c_high_score", "^true$", caseInsensitive = false),
+        boolInput
       )
     )
   }
@@ -708,22 +696,17 @@ object KeywordSearchTransformHandler extends TransformHandler {
   override def extraScenarios(
       testRoot: Path
   ): Seq[(String, LogicalOp, Map[PortIdentity, Path])] = {
-    // A hole widens an integer column to float and every value grows a ".0" the
-    // term "0" then matches on a word boundary, so the rendering decides between
-    // one row and all of them. A digit term cannot: `\b6\b` finds "6.0" too.
-    val numberDir = testRoot.resolve("numbers")
-    Files.createDirectories(numberDir)
-    val numberColumn = Seq(("a\"b\\c_n", AttributeType.INTEGER))
-    val numberRows: Seq[Seq[Any]] =
-      Seq(Seq[Any](6), Seq[Any](null), Seq[Any](70), Seq[Any](0))
-    val numberInput = CuratedHandlers.writeFixture(
-      numberDir.resolve("input_port_0.jsonl"),
-      numberColumn,
-      numberRows
+    // A hole widens the shared table's 0/1 column to float and every value grows
+    // a ".0" the term "0" then matches on a word boundary, so the rendering
+    // decides between the 0 rows and all of them.
+    val numberInput = CanonicalFixture.write(
+      Files.createDirectories(testRoot.resolve("numbers")),
+      1,
+      withGaps = true
     )
 
     val desc = new KeywordSearchOpDesc()
-    desc.attribute = "a\"b\\c_n"
+    desc.attribute = "a\"b\\c_species"
     desc.keyword = "0"
     desc.isCaseSensitive = false
 
@@ -750,7 +733,7 @@ object KeywordSearchTransformHandler extends TransformHandler {
     cased.isCaseSensitive = true
 
     Seq(
-      ("keyword=0 on an integer column", desc, Map(PortIdentity(0) -> numberInput)),
+      ("keyword=0 on an integer column", desc, numberInput),
       ("keyword=Love, case sensitive", cased, Map(PortIdentity(0) -> casedInput))
     )
   }
