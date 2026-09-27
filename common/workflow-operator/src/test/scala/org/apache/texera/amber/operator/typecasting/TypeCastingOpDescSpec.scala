@@ -180,6 +180,8 @@ class TypeCastingOpDescSpec extends AnyFlatSpec with Matchers {
   // grows one, and a boolean is lower case.
   private val stringColumns: Seq[(String, String, Seq[AnyRef])] = Seq(
     ("dbl", "float64", Seq(Double.box(6.0), Double.box(7.25))),
+    // Java writes E notation from 1e7 up and below 1e-3.
+    ("dbl_e", "float64", Seq(Double.box(1.0e7), Double.box(1.0e-4))),
     ("int", "int64", Seq(Int.box(6), Int.box(7))),
     ("flag", "bool", Seq(Boolean.box(true), Boolean.box(false)))
   )
@@ -240,7 +242,7 @@ class TypeCastingOpDescSpec extends AnyFlatSpec with Matchers {
     }
     // The pair that made the review: a double keeps its point at 6.0, where the
     // integer 6 has none.
-    fromEngine shouldBe Seq("6.0", "7.25", "6", "7", "true", "false")
+    fromEngine shouldBe Seq("6.0", "7.25", "1.0E7", "1.0E-4", "6", "7", "true", "false")
   }
 
   // The moments where the two sides used to part. pandas parses into nanoseconds
