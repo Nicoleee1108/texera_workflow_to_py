@@ -107,6 +107,7 @@ class IfOpDescSpec extends AnyFlatSpec with Matchers {
 
     val driver =
       s"""import pandas as pd
+         |import sys
          |
          |for _switch in (None, True, False):
          |    in2df = pd.DataFrame({"id": [1, 2, 3]})
@@ -133,6 +134,9 @@ class IfOpDescSpec extends AnyFlatSpec with Matchers {
       lines should contain("None [] [1, 2, 3]")
       lines should contain("True [] [1, 2, 3]")
       lines should contain("False [1, 2, 3] []")
+      // Only the unset switch takes True without being told to, so it alone
+      // says so.
+      lines.count(_.contains("_texera_if_ready = False before this step")) shouldBe 1
     }
   }
 
