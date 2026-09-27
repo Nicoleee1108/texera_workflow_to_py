@@ -476,8 +476,8 @@ trait SourceHandler {
   * fixture picked for the types that survive a round trip would be choosing not
   * to ask the question this suite exists to ask: these files carry no types, both
   * readers infer, and where they infer differently is exactly what should show. A
-  * date column does part them, and [[StandaloneRunner.sourceCasts]] is where that
-  * is settled — on Path B's reading, not by leaving the column out.
+  * date column does part them, and the exported reader settles that by parsing it
+  * as the engine does, not by leaving the column out.
   */
 object CanonicalSourceFixture {
 
@@ -804,6 +804,13 @@ object TextInputHandler extends SourceHandler {
     desc
   }
 
+  /** Timestamp lines the engine reads its own way: digits past the millisecond,
+    * which it cuts, an offset, which it moves to the local zone, and a year
+    * past pandas' nanosecond range.
+    */
+  val TimestampLines: String =
+    "2024-01-01 00:00:00.123456789\n2024-01-01T00:00:00+05:30\n2500-01-01 00:00:00"
+
   /** A line the window skips is never parsed, so it may be one the type refuses.
     * A boolean line is read as the engine reads one, where 1 is true.
     */
@@ -812,7 +819,8 @@ object TextInputHandler extends SourceHandler {
       "integers past a line skipped" -> (_ =>
         typed("not a number\n1\n2\n3", FileAttributeType.INTEGER, Some(1))
       ),
-      "booleans" -> (_ => typed("true\nFALSE\n1\n0", FileAttributeType.BOOLEAN, None))
+      "booleans" -> (_ => typed("true\nFALSE\n1\n0", FileAttributeType.BOOLEAN, None)),
+      "timestamps" -> (_ => typed(TimestampLines, FileAttributeType.TIMESTAMP, None))
     )
 }
 
@@ -882,6 +890,9 @@ object FileScanSourceHandler extends SourceHandler {
         )
       ),
       "booleans" -> (dir => described(text(dir, "true\nFALSE\n1\n0\n"), FileAttributeType.BOOLEAN)),
+      "timestamps" -> (dir =>
+        described(text(dir, TextInputHandler.TimestampLines + "\n"), FileAttributeType.TIMESTAMP)
+      ),
       "UTF-16" -> (dir =>
         described(
           text(dir, "première\ndeuxième\n", StandardCharsets.UTF_16),
