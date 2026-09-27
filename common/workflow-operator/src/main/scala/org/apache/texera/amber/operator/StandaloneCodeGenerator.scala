@@ -175,7 +175,7 @@ object StandaloneCodeGenerator {
     AttributeType.LONG -> "Int64",
     AttributeType.DOUBLE -> "float64",
     AttributeType.BOOLEAN -> "boolean",
-    AttributeType.TIMESTAMP -> "datetime64[ns]",
+    AttributeType.TIMESTAMP -> "datetime64[us]",
     AttributeType.STRING -> "object"
   )
 }
