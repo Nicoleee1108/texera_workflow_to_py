@@ -79,7 +79,7 @@ object SourceCategoryRunner {
   /**
     * The curated tier: sources that keep a hand-written handler because they
     * can't go through the shared-fixture + encoder (auto) path — their output
-    * isn't the shared 3-column table (text-family, single `line` column) or
+    * isn't the shared table (text-family, single `line` column) or
     * their data is inline config rather than a file. Mirrors the transform
     * side's [[CuratedHandlers]] (hand-written vs auto-generated fixture).
     */
@@ -455,7 +455,8 @@ trait SourceHandler {
   def rowCount: Int
 
   /** Configurations the sweep cannot reach, each with the file it has to read:
-    * a type the default text cannot be parsed as, or bytes in another charset.
+    * a type the default text cannot be parsed as, bytes in another charset, or
+    * an archive to extract.
     * Each one writes into the directory it is handed and returns the configured
     * op. Default: none.
     */
@@ -467,10 +468,10 @@ trait SourceHandler {
   *
   * A source has no input port, so the fixture is delivered not as an input JSONL
   * but as a file the operator opens itself. Each `writeXxx` encodes these rows
-  * into one on-disk format (CSV / JSONL / Arrow); a source handler picks the
-  * encoder its operator understands and points `fileName` at the result. So CSV,
-  * CSVOld, JSONL and Arrow all verify that the operator reconstructs one shared
-  * table, instead of each asserting against its own ad-hoc sample.
+  * into one on-disk format (CSV / JSONL / Arrow / Parquet); [[encoderByFileType]]
+  * picks the one the operator declares and points `fileName` at the result. So
+  * CSV, CSVOld, JSONL, Arrow and Parquet all verify that the operator reconstructs
+  * one shared table, instead of each asserting against its own ad-hoc sample.
   *
   * It reads the canonical table rather than a narrow one of its own. A source
   * fixture picked for the types that survive a round trip would be choosing not
