@@ -55,6 +55,7 @@ import { ContextMenuComponent } from "./context-menu/context-menu/context-menu.c
 import { NgIf } from "@angular/common";
 import { AgentInteractionComponent } from "../agent/agent-interaction/agent-interaction.component";
 import { HeatmapLegendComponent } from "../heatmap-legend/heatmap-legend.component";
+import { OperatorResultPreviewComponent } from "./operator-result-preview/operator-result-preview.component";
 import { JupyterPanelService } from "../../service/jupyter-panel/jupyter-panel.service";
 
 // jointjs interactive options for enabling and disabling interactivity
@@ -103,6 +104,7 @@ export const MAIN_CANVAS = {
     NgIf,
     AgentInteractionComponent,
     HeatmapLegendComponent,
+    OperatorResultPreviewComponent,
   ],
 })
 export class WorkflowEditorComponent implements OnInit, AfterViewInit, OnDestroy {
@@ -119,6 +121,8 @@ export class WorkflowEditorComponent implements OnInit, AfterViewInit, OnDestroy
     metricLabel: string;
     heatLabel: string;
   } | null = null;
+  // The hovered operator's result preview, and where to show it. Null when hidden.
+  public resultPreview: { operatorId: string; x: number; y: number } | null = null;
   private paperInteractive: boolean = true;
   // Keeps the paper sized to its OWN container (not just the window) and rebuilds cell geometry
   // when the container goes 0 -> real size. Needed by embedded previews like the Form View strip,
@@ -249,6 +253,7 @@ export class WorkflowEditorComponent implements OnInit, AfterViewInit, OnDestroy
     this.handleOperatorStatusUpdate();
     this.handleHeatmapOverlay();
     this.handleHeatmapHover();
+    this.handleResultPreviewHover();
     this.handleRegionEvents();
     this.handleOperatorSuggestionHighlightEvent();
     this.handleAgentHoverHighlight();
@@ -586,6 +591,43 @@ export class WorkflowEditorComponent implements OnInit, AfterViewInit, OnDestroy
           return;
         }
         this.heatmapTooltip = null;
+        this.changeDetectorRef.detectChanges();
+      });
+  }
+
+  /**
+   * Shows the hovered operator's result preview. Off while the heat-map overlay is on, whose own
+   * tooltip answers the hover then.
+   */
+  private handleResultPreviewHover(): void {
+    fromJointPaperEvent(this.paper, "element:mouseenter")
+      .pipe(untilDestroyed(this))
+      .subscribe(([elementView, evt]) => {
+        if (this.wrapper.getHeatmapView() !== null) {
+          return;
+        }
+        const operatorId = elementView.model.id.toString();
+        if (!this.workflowActionService.getTexeraGraph().hasOperator(operatorId)) {
+          return;
+        }
+        const rect = this.editor.getBoundingClientRect();
+        const mouseEvent = evt as unknown as MouseEvent;
+        this.resultPreview = {
+          operatorId,
+          x: mouseEvent.clientX - rect.left + 12,
+          y: mouseEvent.clientY - rect.top + 12,
+        };
+        // JointJS paper events fire outside Angular's zone (see handleHeatmapHover).
+        this.changeDetectorRef.detectChanges();
+      });
+
+    fromJointPaperEvent(this.paper, "element:mouseleave")
+      .pipe(untilDestroyed(this))
+      .subscribe(() => {
+        if (this.resultPreview === null) {
+          return;
+        }
+        this.resultPreview = null;
         this.changeDetectorRef.detectChanges();
       });
   }

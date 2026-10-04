@@ -374,6 +374,33 @@ describe("WorkflowEditorComponent", () => {
       expect(linkView.hasTools()).toBe(false);
     });
 
+    it("previews a hovered operator's result, and hides it when the pointer leaves", () => {
+      addLinkedPair();
+      const view = component.paper.findViewByModel(mockScanPredicate.operatorID);
+
+      component.paper.trigger("element:mouseenter", view, new MouseEvent("mouseenter"));
+      fixture.detectChanges();
+      expect(component.resultPreview?.operatorId).toBe(mockScanPredicate.operatorID);
+      expect(fixture.debugElement.query(By.css("texera-operator-result-preview"))).toBeTruthy();
+
+      component.paper.trigger("element:mouseleave", view, new MouseEvent("mouseleave"));
+      fixture.detectChanges();
+      expect(component.resultPreview).toBeNull();
+      expect(fixture.debugElement.query(By.css("texera-operator-result-preview"))).toBeNull();
+    });
+
+    it("leaves the hover to the heat-map tooltip while that overlay is on", () => {
+      addLinkedPair();
+      vi.spyOn(TestBed.inject(WorkflowActionService).getJointGraphWrapper(), "getHeatmapView").mockReturnValue(
+        "throughput" as any
+      );
+      const view = component.paper.findViewByModel(mockScanPredicate.operatorID);
+
+      component.paper.trigger("element:mouseenter", view, new MouseEvent("mouseenter"));
+
+      expect(component.resultPreview).toBeNull();
+    });
+
     /** Select the scan operator the way a click does and return its model, whose attrs say what is on show. */
     function selectScanOperator(): joint.dia.Cell {
       addLinkedPair();
