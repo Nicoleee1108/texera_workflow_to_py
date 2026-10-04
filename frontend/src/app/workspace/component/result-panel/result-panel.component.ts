@@ -379,8 +379,18 @@ export class ResultPanelComponent implements OnInit, OnDestroy {
     return operator.customDisplayName ?? operator.operatorType;
   }
 
+  /**
+   * Whether the operator failed. A bad tuple does not fail the run: its worker pauses and writes
+   * an ERROR to the operator's console, and the run stays running. So the console counts too,
+   * not only the fatal and compilation errors.
+   */
   hasError(operatorId: string): boolean {
-    return this.getWorkflowFatalErrors(operatorId).length > 0;
+    return (
+      this.getWorkflowFatalErrors(operatorId).length > 0 ||
+      (this.workflowConsoleService.getConsoleMessages(operatorId) ?? []).some(
+        message => message.msgType.name === "ERROR"
+      )
+    );
   }
 
   /**

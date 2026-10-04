@@ -41,6 +41,8 @@ import { MockComputingUnitStatusService } from "../../../../common/service/compu
 import { commonTestProviders } from "../../../../common/testing/test-utils";
 import { mockPoint, mockScanPredicate } from "../../../service/workflow-graph/model/mock-workflow-data";
 import { ExecutionState } from "../../../types/execute-workflow.interface";
+import { ConsoleMessage } from "../../../types/workflow-common.interface";
+import { WorkflowConsoleService } from "../../../service/workflow-console/workflow-console.service";
 import { AttributeType } from "../../../types/workflow-compiling.interface";
 import { WorkflowFatalError } from "../../../types/workflow-websocket.interface";
 import { OperatorPaginationResultService } from "../../../service/workflow-result/workflow-result.service";
@@ -147,6 +149,21 @@ describe("OperatorResultPreviewComponent", () => {
     vi.spyOn(executeService, "getErrorMessages").mockReturnValue([fatalError(id)]);
 
     expect(component.preview).toMatchObject({ kind: "error", summary: "failed", detail: "KeyError: 'price'" });
+  });
+
+  // A bad tuple pauses the worker and writes an ERROR to the console rather than failing the run.
+  it("shows the error an operator wrote to its console", () => {
+    withRows(5);
+    vi.spyOn(TestBed.inject(WorkflowConsoleService), "getConsoleMessages").mockReturnValue([
+      { msgType: { name: "PRINT" }, title: "hello" },
+      { msgType: { name: "ERROR" }, title: 'NumberFormatException: For input string: "a"' },
+    ] as unknown as ConsoleMessage[]);
+
+    expect(component.preview).toMatchObject({
+      kind: "error",
+      summary: "failed",
+      detail: 'NumberFormatException: For input string: "a"',
+    });
   });
 
   it("says to run the workflow when nothing has run yet", () => {

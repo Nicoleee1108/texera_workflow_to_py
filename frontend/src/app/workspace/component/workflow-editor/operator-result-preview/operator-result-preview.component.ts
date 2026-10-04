@@ -25,6 +25,7 @@ import { WorkflowActionService } from "../../../service/workflow-graph/model/wor
 import { WorkflowResultService } from "../../../service/workflow-result/workflow-result.service";
 import { WorkflowCompilingService } from "../../../service/compile-workflow/workflow-compiling.service";
 import { ExecuteWorkflowService } from "../../../service/execute-workflow/execute-workflow.service";
+import { WorkflowConsoleService } from "../../../service/workflow-console/workflow-console.service";
 import { ExecutionState } from "../../../types/execute-workflow.interface";
 
 /** How many columns the preview shows before it says how many more there are. */
@@ -74,6 +75,7 @@ export class OperatorResultPreviewComponent implements OnChanges {
     private workflowResultService: WorkflowResultService,
     private workflowCompilingService: WorkflowCompilingService,
     private executeWorkflowService: ExecuteWorkflowService,
+    private workflowConsoleService: WorkflowConsoleService,
     private changeDetectorRef: ChangeDetectorRef
   ) {}
 
@@ -117,6 +119,13 @@ export class OperatorResultPreviewComponent implements OnChanges {
       .find(e => e.operatorId === id);
     if (error) {
       return { ...base, kind: "error", summary: "failed", detail: error.message };
+    }
+    // A bad tuple pauses the worker and writes an ERROR to the console rather than failing the run.
+    const consoleError = (this.workflowConsoleService.getConsoleMessages(id) ?? []).find(
+      message => message.msgType.name === "ERROR"
+    );
+    if (consoleError) {
+      return { ...base, kind: "error", summary: "failed", detail: consoleError.title };
     }
 
     const paginated = this.workflowResultService.getPaginatedResultService(id);

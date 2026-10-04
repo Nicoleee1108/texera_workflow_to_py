@@ -52,7 +52,7 @@ import { WorkflowConsoleService } from "../../service/workflow-console/workflow-
 import { CompilationState } from "../../types/workflow-compiling.interface";
 import { WorkflowFatalError } from "../../types/workflow-websocket.interface";
 import { PYTHON_UDF_V2_OP_TYPE } from "../../service/workflow-graph/model/workflow-graph";
-import { OperatorPredicate } from "../../types/workflow-common.interface";
+import { ConsoleMessage, OperatorPredicate } from "../../types/workflow-common.interface";
 
 describe("ResultPanelComponent", () => {
   let component: ResultPanelComponent;
@@ -324,6 +324,20 @@ describe("ResultPanelComponent", () => {
       workflowActionService.addOperator({ ...mockScanPredicate, customDisplayName: "Orders" }, mockPoint);
 
       expect(component.tabLabel(mockScanPredicate.operatorID)).toBe("Orders");
+    });
+
+    // A bad tuple does not fail the run: the worker pauses and writes an ERROR to the console.
+    it("counts an error in the operator's console as a failure, but not other console output", () => {
+      const consoleService = TestBed.inject(WorkflowConsoleService);
+      const message = (name: string) =>
+        ({ msgType: { name }, title: "NumberFormatException", message: "" }) as unknown as ConsoleMessage;
+      const messages = vi.spyOn(consoleService, "getConsoleMessages");
+
+      messages.mockReturnValue([message("PRINT")]);
+      expect(component.hasError("3")).toBe(false);
+
+      messages.mockReturnValue([message("PRINT"), message("ERROR")]);
+      expect(component.hasError("3")).toBe(true);
     });
 
     it("renders a tab per open operator, marks a failed one, and wires select and close", () => {
