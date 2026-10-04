@@ -148,6 +148,7 @@ describe("ResultPanelComponent", () => {
     // Simulate a result frame on screen for a currently-highlighted operator.
     // ResultPanelComponent stands in as a throwaway frame component; it's cleared before it renders.
     component.currentOperatorId = "op1";
+    component.openOperatorIds = ["op1", "op2"];
     component.operatorTitle = "Operator 1";
     component.frameComponentConfigs.set("Result", { component: ResultPanelComponent, componentInputs: {} });
     expect(component.frameComponentConfigs.size).toBe(1);
@@ -159,7 +160,194 @@ describe("ResultPanelComponent", () => {
 
     expect(component.frameComponentConfigs.size).toBe(0);
     expect(component.currentOperatorId).toBeUndefined();
+    expect(component.openOperatorIds).toEqual([]);
     expect(component.operatorTitle).toBe("");
+  });
+
+  describe("operator tabs", () => {
+    const highlightOnly = (operatorId: string) => {
+      const wrapper = workflowActionService.getJointGraphWrapper();
+      wrapper.unhighlightOperators(...wrapper.getCurrentHighlightedOperatorIDs());
+      wrapper.highlightOperators(operatorId);
+    };
+
+    // A tab opens only for an operator with something to show, so every operator these cases
+    // add has a result unless the case says otherwise.
+    let hasAnyResult: ReturnType<typeof vi.spyOn>;
+    beforeEach(() => {
+      hasAnyResult = vi.spyOn(workflowResultService, "hasAnyResult").mockReturnValue(true);
+    });
+
+    it("opens no tab for an operator with nothing to show, and keeps the one shown", () => {
+      workflowActionService.addOperator(mockResultPredicate, mockPoint);
+      hasAnyResult.mockImplementation((id: string) => id === mockResultPredicate.operatorID);
+      workflowActionService.addOperator(mockScanPredicate, mockPoint);
+
+      expect(component.openOperatorIds).toEqual([mockResultPredicate.operatorID]);
+      expect(component.currentOperatorId).toBe(mockResultPredicate.operatorID);
+    });
+
+    it("opens the tab once a result arrives for the operator still highlighted", () => {
+      hasAnyResult.mockReturnValue(false);
+      workflowActionService.addOperator(mockScanPredicate, mockPoint);
+      expect(component.openOperatorIds).toEqual([]);
+
+      hasAnyResult.mockReturnValue(true);
+      workflowResultService["resultInitiateStream"].next(mockScanPredicate.operatorID);
+
+      expect(component.openOperatorIds).toEqual([mockScanPredicate.operatorID]);
+    });
+
+    it("opens a tab for an operator with no result but an error to show", () => {
+      hasAnyResult.mockReturnValue(false);
+      vi.spyOn(executeWorkflowService, "getErrorMessages").mockReturnValue([
+        makeFatalError(mockScanPredicate.operatorID),
+      ]);
+
+      workflowActionService.addOperator(mockScanPredicate, mockPoint);
+
+      expect(component.openOperatorIds).toEqual([mockScanPredicate.operatorID]);
+    });
+
+    it("opens a tab for each operator highlighted on its own, and shows the latest", () => {
+      workflowActionService.addOperator(mockScanPredicate, mockPoint);
+      workflowActionService.addOperator(mockResultPredicate, mockPoint);
+      highlightOnly(mockScanPredicate.operatorID);
+      highlightOnly(mockResultPredicate.operatorID);
+
+      expect(component.openOperatorIds).toEqual([mockScanPredicate.operatorID, mockResultPredicate.operatorID]);
+      expect(component.currentOperatorId).toBe(mockResultPredicate.operatorID);
+    });
+
+    it("switches to a tab already open instead of opening it twice", () => {
+      workflowActionService.addOperator(mockScanPredicate, mockPoint);
+      workflowActionService.addOperator(mockResultPredicate, mockPoint);
+      highlightOnly(mockScanPredicate.operatorID);
+
+      expect(component.openOperatorIds).toEqual([mockScanPredicate.operatorID, mockResultPredicate.operatorID]);
+      expect(component.currentOperatorId).toBe(mockScanPredicate.operatorID);
+    });
+
+    it("leaves the tabs alone while several operators are highlighted", () => {
+      workflowActionService.addOperator(mockScanPredicate, mockPoint);
+      workflowActionService.addOperator(mockResultPredicate, mockPoint);
+      const wrapper = workflowActionService.getJointGraphWrapper();
+      wrapper.setMultiSelectMode(true);
+      wrapper.highlightOperators(mockScanPredicate.operatorID);
+
+      expect(wrapper.getCurrentHighlightedOperatorIDs().length).toBe(2);
+      expect(component.currentOperatorId).toBe(mockResultPredicate.operatorID);
+    });
+
+    it("selecting a tab highlights its operator on the canvas", () => {
+      workflowActionService.addOperator(mockScanPredicate, mockPoint);
+      workflowActionService.addOperator(mockResultPredicate, mockPoint);
+
+      component.selectTab(mockScanPredicate.operatorID);
+
+      expect(workflowActionService.getJointGraphWrapper().getCurrentHighlightedOperatorIDs()).toEqual([
+        mockScanPredicate.operatorID,
+      ]);
+      expect(component.currentOperatorId).toBe(mockScanPredicate.operatorID);
+    });
+
+    it("closing the shown tab moves to its neighbour", () => {
+      workflowActionService.addOperator(mockScanPredicate, mockPoint);
+      workflowActionService.addOperator(mockResultPredicate, mockPoint);
+
+      component.closeTab(mockResultPredicate.operatorID);
+
+      expect(component.openOperatorIds).toEqual([mockScanPredicate.operatorID]);
+      expect(component.currentOperatorId).toBe(mockScanPredicate.operatorID);
+      expect(workflowActionService.getJointGraphWrapper().getCurrentHighlightedOperatorIDs()).toEqual([
+        mockScanPredicate.operatorID,
+      ]);
+    });
+
+    it("closing a tab that is not shown keeps the one that is", () => {
+      workflowActionService.addOperator(mockScanPredicate, mockPoint);
+      workflowActionService.addOperator(mockResultPredicate, mockPoint);
+
+      component.closeTab(mockScanPredicate.operatorID);
+
+      expect(component.openOperatorIds).toEqual([mockResultPredicate.operatorID]);
+      expect(component.currentOperatorId).toBe(mockResultPredicate.operatorID);
+    });
+
+    it("closing the last tab empties the panel and does not reopen it", () => {
+      workflowActionService.addOperator(mockResultPredicate, mockPoint);
+
+      component.closeTab(mockResultPredicate.operatorID);
+      component.rerenderResultPanel();
+
+      expect(component.openOperatorIds).toEqual([]);
+      expect(component.currentOperatorId).toBeUndefined();
+      expect(workflowActionService.getJointGraphWrapper().getCurrentHighlightedOperatorIDs()).toEqual([]);
+    });
+
+    it("deleting an operator closes its tab", () => {
+      workflowActionService.addOperator(mockScanPredicate, mockPoint);
+      workflowActionService.addOperator(mockResultPredicate, mockPoint);
+
+      workflowActionService.deleteOperator(mockScanPredicate.operatorID);
+
+      expect(component.openOperatorIds).toEqual([mockResultPredicate.operatorID]);
+    });
+
+    it("a finished run opens one tab per operator with a result, in place of the open ones", () => {
+      workflowActionService.addOperator(mockScanPredicate, mockPoint);
+      workflowActionService.addOperator(mockResultPredicate, mockPoint);
+      highlightOnly(mockScanPredicate.operatorID);
+      vi.spyOn(workflowResultService, "hasAnyResult").mockImplementation(id => id === mockResultPredicate.operatorID);
+
+      executeWorkflowService["updateExecutionState"]({ state: ExecutionState.Running });
+      executeWorkflowService["updateExecutionState"]({ state: ExecutionState.Completed });
+
+      expect(component.openOperatorIds).toEqual([mockResultPredicate.operatorID]);
+      expect(component.currentOperatorId).toBe(mockResultPredicate.operatorID);
+    });
+
+    // Few operators are sinks any more: what decides a tab is whether the run kept a result,
+    // which is true of the last operator in a workflow and of any whose result is switched on.
+    it("a finished run opens a tab for an operator with a result that is not a sink", () => {
+      workflowActionService.addOperator(mockScanPredicate, mockPoint);
+      workflowActionService.addOperator(mockResultPredicate, mockPoint);
+      vi.spyOn(workflowResultService, "hasAnyResult").mockReturnValue(true);
+
+      executeWorkflowService["updateExecutionState"]({ state: ExecutionState.Running });
+      executeWorkflowService["updateExecutionState"]({ state: ExecutionState.Completed });
+
+      expect(component.openOperatorIds).toEqual([mockScanPredicate.operatorID, mockResultPredicate.operatorID]);
+    });
+
+    it("labels a tab with the operator's display name", () => {
+      workflowActionService.addOperator({ ...mockScanPredicate, customDisplayName: "Orders" }, mockPoint);
+
+      expect(component.tabLabel(mockScanPredicate.operatorID)).toBe("Orders");
+    });
+
+    it("renders a tab per open operator, marks a failed one, and wires select and close", () => {
+      workflowActionService.addOperator(mockScanPredicate, mockPoint);
+      workflowActionService.addOperator(mockResultPredicate, mockPoint);
+      vi.spyOn(executeWorkflowService, "getErrorMessages").mockReturnValue([
+        makeFatalError(mockScanPredicate.operatorID),
+      ]);
+      component.openPanel();
+      fixture.detectChanges();
+
+      const tabs = fixture.debugElement.queryAll(By.css(".operator-tab"));
+      expect(tabs.length).toBe(2);
+      expect(tabs[0].query(By.css(".operator-tab-error"))).toBeTruthy();
+      expect(tabs[1].query(By.css(".operator-tab-error"))).toBeNull();
+      expect(tabs[1].nativeElement.classList).toContain("active");
+
+      const selectSpy = vi.spyOn(component, "selectTab");
+      const closeSpy = vi.spyOn(component, "closeTab");
+      tabs[0].query(By.css(".operator-tab-label")).nativeElement.click();
+      tabs[0].query(By.css(".operator-tab-close")).nativeElement.click();
+      expect(selectSpy).toHaveBeenCalledWith(mockScanPredicate.operatorID);
+      expect(closeSpy).toHaveBeenCalledWith(mockScanPredicate.operatorID);
+    });
   });
 
   describe("visibility", () => {
@@ -335,17 +523,19 @@ describe("ResultPanelComponent", () => {
       expect(clearSpy).not.toHaveBeenCalled();
     });
 
-    it("resets the operator title when the highlight selection is cleared", () => {
-      // Nothing highlighted -> the single-highlight ternary takes its `undefined` branch,
-      // currentOperatorId flips to undefined and the title is wiped.
+    it("keeps the shown tab when the highlight selection is cleared", () => {
+      // Nothing highlighted -> the panel keeps what it shows rather than emptying, since the
+      // operator still has a tab.
+      workflowActionService.addOperator(mockResultPredicate, mockPoint);
       vi.spyOn(workflowActionService.getJointGraphWrapper(), "getCurrentHighlightedOperatorIDs").mockReturnValue([]);
       component.currentOperatorId = "3";
+      component.openOperatorIds = ["3"];
       component.operatorTitle = "Old Title";
 
       component.rerenderResultPanel();
 
-      expect(component.currentOperatorId).toBeUndefined();
-      expect(component.operatorTitle).toBe("");
+      expect(component.currentOperatorId).toBe("3");
+      expect(component.operatorTitle).toBe("Old Title");
     });
 
     it("shows an error frame for the whole workflow when execution failed with no operator selected", () => {
@@ -439,6 +629,9 @@ describe("ResultPanelComponent", () => {
       };
       const consoleService = TestBed.inject(WorkflowConsoleService);
       vi.spyOn(workflowActionService.getJointGraphWrapper(), "getCurrentHighlightedOperatorIDs").mockReturnValue(["3"]);
+      // The stub metadata has no Python UDF type, so the graph is stubbed rather than added to.
+      // Being a Python UDF is what gives the operator something to show.
+      vi.spyOn(workflowActionService.getTexeraGraph(), "hasOperator").mockReturnValue(true);
       vi.spyOn(workflowActionService.getTexeraGraph(), "getOperator").mockReturnValue(pythonOp);
       // No stored console messages -> the Python-UDF branch of the OR is what enables the console.
       vi.spyOn(consoleService, "hasConsoleMessages").mockReturnValue(false);
@@ -452,9 +645,10 @@ describe("ResultPanelComponent", () => {
   });
 
   describe("auto-open reactions to execution state", () => {
-    it("highlights the first active sink when a run completes and it is not already the sole selection", () => {
+    it("highlights the first operator with a result when a run completes and it is not already the sole selection", () => {
       // Add the operator first: adding auto-highlights it, so spy only after that settles.
       workflowActionService.addOperator(mockResultPredicate, mockPoint);
+      vi.spyOn(workflowResultService, "hasAnyResult").mockReturnValue(true);
       const wrapper = workflowActionService.getJointGraphWrapper();
       vi.spyOn(wrapper, "getCurrentHighlightedOperatorIDs").mockReturnValue([]);
       const highlightSpy = vi.spyOn(wrapper, "highlightOperators").mockImplementation(() => {});
@@ -467,8 +661,9 @@ describe("ResultPanelComponent", () => {
       expect(highlightSpy).toHaveBeenCalledWith(mockResultPredicate.operatorID);
     });
 
-    it("does not re-highlight a sink that is already the sole highlighted operator", () => {
+    it("does not re-highlight an operator with a result that is already the sole highlighted operator", () => {
       workflowActionService.addOperator(mockResultPredicate, mockPoint);
+      vi.spyOn(workflowResultService, "hasAnyResult").mockReturnValue(true);
       const wrapper = workflowActionService.getJointGraphWrapper();
       vi.spyOn(wrapper, "getCurrentHighlightedOperatorIDs").mockReturnValue([mockResultPredicate.operatorID]);
       const highlightSpy = vi.spyOn(wrapper, "highlightOperators").mockImplementation(() => {});
@@ -513,8 +708,8 @@ describe("ResultPanelComponent", () => {
       expect(highlightSpy).not.toHaveBeenCalled();
     });
 
-    it("does not touch the highlight selection when a run completes with no sink operators", () => {
-      // A source-only workflow has no sink, so the sink-highlight guard takes its empty branch.
+    it("does not touch the highlight selection when a run completes with no result", () => {
+      // No operator kept a result, so the result-highlight guard takes its empty branch.
       workflowActionService.addOperator(mockScanPredicate, mockPoint);
       const wrapper = workflowActionService.getJointGraphWrapper();
       const highlightSpy = vi.spyOn(wrapper, "highlightOperators").mockImplementation(() => {});
@@ -551,6 +746,8 @@ describe("ResultPanelComponent", () => {
   describe("operator display name changes", () => {
     beforeEach(() => {
       workflowActionService.addOperator(mockResultPredicate, mockPoint);
+      // Only an operator with something to show becomes the one shown, so give it a result.
+      vi.spyOn(workflowResultService, "hasAnyResult").mockReturnValue(true);
       // Drive a rerender with the operator selected so the display-name handler subscribes.
       vi.spyOn(workflowActionService.getJointGraphWrapper(), "getCurrentHighlightedOperatorIDs").mockReturnValue(["3"]);
       executeWorkflowService["updateExecutionState"]({ state: ExecutionState.Running });

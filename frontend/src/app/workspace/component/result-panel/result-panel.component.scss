@@ -64,6 +64,68 @@ $type-colors: (
   padding-top: 38px;
   width: inherit;
   height: inherit;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+
+// the frames take the room the operator tabs leave
+#content > .result-content {
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+#operator-tabs {
+  flex-shrink: 0;
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+  // the collapse button sits over the panel's bottom-left corner
+  padding: 0 8px 0 40px;
+  background: #f5f5f5;
+  border-top: 1px solid #e0e0e0;
+}
+
+.operator-tab {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-top: -1px;
+  border-top: 2px solid transparent;
+
+  &.active {
+    background: white;
+    border-top-color: #1890ff;
+    font-weight: 600;
+  }
+}
+
+.operator-tab-label,
+.operator-tab-close {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+}
+
+.operator-tab-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 4px 0 10px;
+}
+
+.operator-tab-close {
+  padding: 0 8px 0 4px;
+  color: #595959;
+}
+
+.operator-tab-error {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #cf1322;
 }
 
 .result-content,

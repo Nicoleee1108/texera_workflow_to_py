@@ -115,6 +115,34 @@
         </nz-tab>
       </div>
     </nz-tabs>
+    <div
+      id="operator-tabs"
+      *ngIf="openOperatorIds.length > 0">
+      <div
+        *ngFor="let operatorId of openOperatorIds"
+        class="operator-tab"
+        [class.active]="operatorId === currentOperatorId">
+        <button
+          type="button"
+          class="operator-tab-label"
+          (click)="selectTab(operatorId)">
+          <span
+            *ngIf="hasError(operatorId)"
+            class="operator-tab-error"
+            aria-label="failed"></span>
+          {{ tabLabel(operatorId) }}
+        </button>
+        <button
+          type="button"
+          class="operator-tab-close"
+          [attr.aria-label]="'Close ' + tabLabel(operatorId)"
+          (click)="closeTab(operatorId)">
+          <span
+            nz-icon
+            nzType="close"></span>
+        </button>
+      </div>
+    </div>
   </div>
   <nz-resize-handles
     *ngIf="width"

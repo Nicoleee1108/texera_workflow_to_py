@@ -37,7 +37,7 @@ import { WorkflowResultService } from "../../service/workflow-result/workflow-re
 import { PanelResizeService } from "../../service/workflow-result/panel-resize/panel-resize.service";
 import { filter } from "rxjs/operators";
 import { UntilDestroy, untilDestroyed } from "@ngneat/until-destroy";
-import { isPythonUdf, isSink } from "../../service/workflow-graph/model/workflow-graph";
+import { isPythonUdf } from "../../service/workflow-graph/model/workflow-graph";
 import { WorkflowVersionService } from "../../../dashboard/service/user/workflow-version/workflow-version.service";
 import { ErrorFrameComponent } from "./error-frame/error-frame.component";
 import { WorkflowConsoleService } from "../../service/workflow-console/workflow-console.service";
@@ -110,6 +110,10 @@ export class ResultPanelComponent implements OnInit, OnDestroy {
   // the highlighted operator ID for display result table / visualization / breakpoint
   currentOperatorId?: string | undefined;
 
+  // the operators with a tab along the panel's bottom, in the order they were opened;
+  // currentOperatorId is the tab being shown
+  openOperatorIds: string[] = [];
+
   previewWorkflowVersion: boolean = false;
 
   constructor(
@@ -138,6 +142,7 @@ export class ResultPanelComponent implements OnInit, OnDestroy {
     this.registerAutoRerenderResultPanel();
     this.registerAutoOpenResultPanel();
     this.registerResultClearedHandler();
+    this.registerOperatorDeleteHandler();
     this.handleResultPanelForVersionPreview();
     this.panelService.closePanelStream.pipe(untilDestroyed(this)).subscribe(() => this.closePanel());
     this.panelService.resetPanelStream.pipe(untilDestroyed(this)).subscribe(() => {
@@ -187,21 +192,26 @@ export class ResultPanelComponent implements OnInit, OnDestroy {
           .getJointGraphWrapper()
           .getCurrentHighlightedOperatorIDs();
 
-        // display panel when execution is completed and highlight sink to show results
+        // display panel when execution is completed and highlight an operator with a result
         // condition must be (Running -> Completed) to prevent cases like
         //   (Uninitialized -> Completed) (a completed workflow is reloaded)
         if (event.previous.state === ExecutionState.Running && event.current.state === ExecutionState.Completed) {
-          const activeSinkOperators = this.workflowActionService
+          // The operators the run kept a result for: the ones at the end of the workflow and the
+          // ones whose result is switched on. Few operators are sinks any more, so this is what
+          // the run actually has to show.
+          const resultOperators = this.workflowActionService
             .getTexeraGraph()
             .getAllOperators()
-            .filter(op => isSink(op))
             .filter(op => !op.isDisabled)
-            .map(op => op.operatorID);
+            .map(op => op.operatorID)
+            .filter(operatorId => this.workflowResultService.hasAnyResult(operatorId));
 
-          if (activeSinkOperators.length > 0) {
-            if (!(currentlyHighlighted.length == 1 && activeSinkOperators.includes(currentlyHighlighted[0]))) {
+          if (resultOperators.length > 0) {
+            // a finished run opens one tab per result, in place of whatever was open before it
+            this.openOperatorIds = [...resultOperators];
+            if (!(currentlyHighlighted.length == 1 && resultOperators.includes(currentlyHighlighted[0]))) {
               this.workflowActionService.getJointGraphWrapper().unhighlightOperators(...currentlyHighlighted);
-              this.workflowActionService.getJointGraphWrapper().highlightOperators(activeSinkOperators[0]);
+              this.workflowActionService.getJointGraphWrapper().highlightOperators(resultOperators[0]);
             }
           }
         }
@@ -236,7 +246,20 @@ export class ResultPanelComponent implements OnInit, OnDestroy {
       .subscribe(() => {
         this.clearResultPanel();
         this.currentOperatorId = undefined;
+        this.openOperatorIds = [];
         this.operatorTitle = "";
+        this.changeDetectorRef.detectChanges();
+      });
+  }
+
+  /** A deleted operator has no result left to show, so its tab closes with it. */
+  registerOperatorDeleteHandler() {
+    this.workflowActionService
+      .getTexeraGraph()
+      .getOperatorDeleteStream()
+      .pipe(untilDestroyed(this))
+      .subscribe(({ deletedOperatorID }) => {
+        this.closeTab(deletedOperatorID);
         this.changeDetectorRef.detectChanges();
       });
   }
@@ -269,13 +292,19 @@ export class ResultPanelComponent implements OnInit, OnDestroy {
     const highlightedOperators = this.workflowActionService.getJointGraphWrapper().getCurrentHighlightedOperatorIDs();
     const currentHighlightedOperator = highlightedOperators.length === 1 ? highlightedOperators[0] : undefined;
 
-    if (this.currentOperatorId !== currentHighlightedOperator) {
+    // One highlighted operator opens its tab, or switches to it, as long as there is something to
+    // show for it. None, several, or one with nothing to show leaves the tabs and the one shown as
+    // they are, so the panel never turns into a tab with nothing in it.
+    if (
+      isDefined(currentHighlightedOperator) &&
+      this.currentOperatorId !== currentHighlightedOperator &&
+      (this.openOperatorIds.includes(currentHighlightedOperator) || this.hasSomethingToShow(currentHighlightedOperator))
+    ) {
       // clear everything, prepare for state change
       this.clearResultPanel();
       this.currentOperatorId = currentHighlightedOperator;
-
-      if (!this.currentOperatorId) {
-        this.operatorTitle = "";
+      if (!this.openOperatorIds.includes(currentHighlightedOperator)) {
+        this.openOperatorIds = [...this.openOperatorIds, currentHighlightedOperator];
       }
     }
 
@@ -308,6 +337,65 @@ export class ResultPanelComponent implements OnInit, OnDestroy {
 
   clearResultPanel(): void {
     this.frameComponentConfigs.clear();
+  }
+
+  /** Show an open tab. The panel follows the highlight, so this highlights the tab's operator. */
+  selectTab(operatorId: string): void {
+    const wrapper = this.workflowActionService.getJointGraphWrapper();
+    const highlighted = wrapper.getCurrentHighlightedOperatorIDs();
+    if (!(highlighted.length === 1 && highlighted[0] === operatorId)) {
+      wrapper.unhighlightOperators(...highlighted);
+      wrapper.highlightOperators(operatorId);
+    }
+    this.rerenderResultPanel();
+  }
+
+  /** Close a tab. Closing the one shown moves to its neighbour, or leaves the panel empty. */
+  closeTab(operatorId: string): void {
+    const index = this.openOperatorIds.indexOf(operatorId);
+    if (index === -1) return;
+    this.openOperatorIds = this.openOperatorIds.filter(id => id !== operatorId);
+    if (operatorId !== this.currentOperatorId) return;
+
+    this.clearResultPanel();
+    this.currentOperatorId = undefined;
+    this.operatorTitle = "";
+    const next = this.openOperatorIds[Math.min(index, this.openOperatorIds.length - 1)];
+    if (isDefined(next)) {
+      this.selectTab(next);
+      return;
+    }
+    // Still highlighted, the closed operator would open its tab again on the next re-render.
+    const wrapper = this.workflowActionService.getJointGraphWrapper();
+    if (wrapper.getCurrentHighlightedOperatorIDs().includes(operatorId)) {
+      wrapper.unhighlightOperators(operatorId);
+    }
+  }
+
+  tabLabel(operatorId: string): string {
+    const graph = this.workflowActionService.getTexeraGraph();
+    if (!graph.hasOperator(operatorId)) return operatorId;
+    const operator = graph.getOperator(operatorId);
+    return operator.customDisplayName ?? operator.operatorType;
+  }
+
+  hasError(operatorId: string): boolean {
+    return this.getWorkflowFatalErrors(operatorId).length > 0;
+  }
+
+  /**
+   * Whether a tab for the operator would have anything in it: a result the run kept, an error,
+   * console output, or, for a Python UDF, the console it takes input from. A run keeps a result
+   * only for some operators, so clicking any other one opens no tab.
+   */
+  hasSomethingToShow(operatorId: string): boolean {
+    const graph = this.workflowActionService.getTexeraGraph();
+    return (
+      this.workflowResultService.hasAnyResult(operatorId) ||
+      this.hasError(operatorId) ||
+      this.workflowConsoleService.hasConsoleMessages(operatorId) ||
+      (graph.hasOperator(operatorId) && isPythonUdf(graph.getOperator(operatorId)))
+    );
   }
 
   displayConsole(operatorId: string, consoleInputEnabled: boolean) {
