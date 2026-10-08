@@ -704,6 +704,11 @@ export class WorkflowEditorComponent implements OnInit, AfterViewInit, OnDestroy
     this.changeDetectorRef.detectChanges();
   }
 
+  // A window is its operator's, so a move keeps the window being dragged instead of rebuilding it.
+  public trackPinnedResult(_index: number, pinned: { operatorId: string }): string {
+    return pinned.operatorId;
+  }
+
   public movePinnedResult(operatorId: string, delta: { dx: number; dy: number }): void {
     this.pinnedResults = this.pinnedResults.map(pinned =>
       pinned.operatorId === operatorId ? { ...pinned, dx: pinned.dx + delta.dx, dy: pinned.dy + delta.dy } : pinned

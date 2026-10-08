@@ -32,7 +32,7 @@
     <div class="heatmap-tooltip__row">Heat: {{ heatmapTooltip.heatLabel }}</div>
   </div>
   <texera-pinned-result-window
-    *ngFor="let pinned of pinnedResults"
+    *ngFor="let pinned of pinnedResults; trackBy: trackPinnedResult"
     class="pinned-result-anchor"
     [operatorId]="pinned.operatorId"
     [style.left.px]="pinnedResultPosition(pinned).x"
