@@ -37,7 +37,11 @@
 .result-preview-anchor {
   position: absolute;
   z-index: 11;
-  pointer-events: none;
+}
+
+.pinned-result-anchor {
+  position: absolute;
+  z-index: 10;
 }
 
 .heatmap-tooltip {

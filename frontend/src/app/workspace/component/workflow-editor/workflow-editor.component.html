@@ -31,10 +31,22 @@
     <div class="heatmap-tooltip__row">{{ heatmapTooltip.metricLabel }}</div>
     <div class="heatmap-tooltip__row">Heat: {{ heatmapTooltip.heatLabel }}</div>
   </div>
+  <texera-pinned-result-window
+    *ngFor="let pinned of pinnedResults"
+    class="pinned-result-anchor"
+    [operatorId]="pinned.operatorId"
+    [style.left.px]="pinnedResultPosition(pinned).x"
+    [style.top.px]="pinnedResultPosition(pinned).y"
+    (moved)="movePinnedResult(pinned.operatorId, $event)"
+    (closed)="unpinResult(pinned.operatorId)"></texera-pinned-result-window>
   <texera-operator-result-preview
     class="result-preview-anchor"
     *ngIf="resultPreview"
     [operatorId]="resultPreview.operatorId"
+    [pinnable]="true"
+    (pin)="pinResultPreview()"
+    (mouseenter)="keepResultPreview()"
+    (mouseleave)="hideResultPreviewSoon()"
     [style.left.px]="resultPreview.x"
     [style.top.px]="resultPreview.y"></texera-operator-result-preview>
   <nz-dropdown-menu
