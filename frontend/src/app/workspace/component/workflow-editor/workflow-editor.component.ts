@@ -79,6 +79,15 @@ export const MAIN_CANVAS = {
   yMax: 1512, // yMin * 2.8
 };
 
+/** How long the pointer rests on an operator before its result card opens. */
+export const RESULT_PREVIEW_DELAY_MS = 500;
+
+/** Whether a mouse button is down. JointJS hands over a jQuery event, which keeps the DOM one inside. */
+function isButtonHeld(evt: unknown): boolean {
+  const event = evt as { buttons?: number; originalEvent?: { buttons?: number } };
+  return (event.originalEvent?.buttons ?? event.buttons ?? 0) !== 0;
+}
+
 /**
  * WorkflowEditorComponent is the component for the main workflow editor part of the UI.
  *
@@ -123,6 +132,7 @@ export class WorkflowEditorComponent implements OnInit, AfterViewInit, OnDestroy
   } | null = null;
   // The hovered operator's result preview, and where to show it. Null when hidden.
   public resultPreview: { operatorId: string; x: number; y: number } | null = null;
+  private previewShowTimer?: ReturnType<typeof setTimeout>;
   private paperInteractive: boolean = true;
   // Keeps the paper sized to its OWN container (not just the window) and rebuilds cell geometry
   // when the container goes 0 -> real size. Needed by embedded previews like the Form View strip,
@@ -603,27 +613,35 @@ export class WorkflowEditorComponent implements OnInit, AfterViewInit, OnDestroy
     fromJointPaperEvent(this.paper, "element:mouseenter")
       .pipe(untilDestroyed(this))
       .subscribe(([elementView, evt]) => {
+        clearTimeout(this.previewShowTimer);
         if (this.wrapper.getHeatmapView() !== null || !this.wrapper.isResultPreviewEnabled()) {
           return;
         }
         const operatorId = elementView.model.id.toString();
-        if (!this.workflowActionService.getTexeraGraph().hasOperator(operatorId)) {
+        // no preview while a button is held: the pointer is dragging an operator or a link
+        if (!this.workflowActionService.getTexeraGraph().hasOperator(operatorId) || isButtonHeld(evt)) {
           return;
         }
         const rect = this.editor.getBoundingClientRect();
         const mouseEvent = evt as unknown as MouseEvent;
-        this.resultPreview = {
-          operatorId,
-          x: mouseEvent.clientX - rect.left + 12,
-          y: mouseEvent.clientY - rect.top + 12,
-        };
-        // JointJS paper events fire outside Angular's zone (see handleHeatmapHover).
-        this.changeDetectorRef.detectChanges();
+        const position = { x: mouseEvent.clientX - rect.left + 12, y: mouseEvent.clientY - rect.top + 12 };
+        // Only a pointer that rests on the operator opens the card, so passing over one does not.
+        this.previewShowTimer = setTimeout(() => {
+          this.resultPreview = { operatorId, ...position };
+          // JointJS paper events fire outside Angular's zone (see handleHeatmapHover).
+          this.changeDetectorRef.detectChanges();
+        }, RESULT_PREVIEW_DELAY_MS);
       });
 
-    fromJointPaperEvent(this.paper, "element:mouseleave")
+    // Leaving the operator, clicking or dragging on the canvas closes the card at once.
+    merge(
+      fromJointPaperEvent(this.paper, "element:mouseleave"),
+      fromJointPaperEvent(this.paper, "element:pointerdown"),
+      fromJointPaperEvent(this.paper, "blank:pointerdown")
+    )
       .pipe(untilDestroyed(this))
       .subscribe(() => {
+        clearTimeout(this.previewShowTimer);
         if (this.resultPreview === null) {
           return;
         }
