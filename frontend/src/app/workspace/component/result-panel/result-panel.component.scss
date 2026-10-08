@@ -70,9 +70,70 @@ $type-colors: (
 }
 
 // the frames take the room the operator tabs leave
-#content > .result-content {
+#content > .result-panes {
+  position: relative;
   flex: 1 1 0;
   min-height: 0;
+  display: flex;
+}
+
+.result-panes > .result-content {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.split-pane {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border-left: 2px solid #1890ff;
+}
+
+.split-pane-header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 30px;
+  padding-left: 10px;
+  font-weight: 600;
+  background: #fafafa;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.split-pane-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.split-pane-empty {
+  padding: 16px;
+  color: #595959;
+}
+
+// covers the right half while a tab is dragged, where dropping it opens it side by side
+.split-drop-zone {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 50%;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #1890ff;
+  font-weight: 600;
+  pointer-events: none;
+  background: rgba(24, 144, 255, 0.04);
+  border: 2px dashed #91d5ff;
+
+  &.over {
+    background: rgba(24, 144, 255, 0.12);
+    border-color: #1890ff;
+  }
 }
 
 #operator-tabs {
@@ -97,6 +158,23 @@ $type-colors: (
     background: white;
     border-top-color: #1890ff;
     font-weight: 600;
+  }
+
+  &.split {
+    background: white;
+    border-top-color: #91d5ff;
+  }
+}
+
+.operator-tab-split {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 0 2px;
+  color: #8c8c8c;
+
+  &:hover {
+    color: #1890ff;
   }
 }
 

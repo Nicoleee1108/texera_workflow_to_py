@@ -92,36 +92,78 @@
       cdkDragHandle>
       Result Panel{{operatorTitle ? ': ' + operatorTitle : ''}}
     </h4>
-    <nz-tabs
-      class="result-content"
-      [nzSize]="'small'"
-      [nzTabPosition]="'left'">
-      <div *ngIf="frameComponentConfigs.size === 0">
-        <nz-tab nzTitle="Result">
-          <div style="text-align: center">
-            <h4>No results available to display.</h4>
-            <p>Tip: enable the eye icon on the operator and execute the workflow to view its results.</p>
-          </div>
-        </nz-tab>
+    <div
+      class="result-panes"
+      (dragover)="onPanesDragOver($event)"
+      (dragleave)="onPanesDragLeave($event)"
+      (drop)="onPanesDrop($event)">
+      <nz-tabs
+        class="result-content"
+        [nzSize]="'small'"
+        [nzTabPosition]="'left'">
+        <div *ngIf="frameComponentConfigs.size === 0">
+          <nz-tab nzTitle="Result">
+            <div style="text-align: center">
+              <h4>No results available to display.</h4>
+              <p>Tip: enable the eye icon on the operator and execute the workflow to view its results.</p>
+            </div>
+          </nz-tab>
+        </div>
+        <div *ngFor="let config of frameComponentConfigs | keyvalue">
+          <nz-tab nzTitle="{{config.key}}">
+            <div
+              #dynamicComponent
+              class="result-content">
+              <ng-container
+                *ngComponentOutlet="config.value.component;inputs: config.value.componentInputs"></ng-container>
+            </div>
+          </nz-tab>
+        </div>
+      </nz-tabs>
+      <div
+        *ngIf="splitOperatorId"
+        class="split-pane">
+        <div class="split-pane-header">
+          <span class="split-pane-title">{{ tabLabel(splitOperatorId) }}</span>
+          <button
+            type="button"
+            class="operator-tab-close"
+            aria-label="Close the side-by-side view"
+            (click)="closeSplit()">
+            <span
+              nz-icon
+              nzType="close"></span>
+          </button>
+        </div>
+        <div class="split-pane-body">
+          <ng-container *ngIf="splitFrame as frame">
+            <ng-container *ngComponentOutlet="frame.component;inputs: frame.componentInputs"></ng-container>
+          </ng-container>
+          <p
+            *ngIf="!splitFrame"
+            class="split-pane-empty">
+            This run kept no result for {{ tabLabel(splitOperatorId) }}.
+          </p>
+        </div>
       </div>
-      <div *ngFor="let config of frameComponentConfigs | keyvalue">
-        <nz-tab nzTitle="{{config.key}}">
-          <div
-            #dynamicComponent
-            class="result-content">
-            <ng-container
-              *ngComponentOutlet="config.value.component;inputs: config.value.componentInputs"></ng-container>
-          </div>
-        </nz-tab>
+      <div
+        *ngIf="draggingOperatorId"
+        class="split-drop-zone"
+        [class.over]="dropZoneActive">
+        Drop to compare side by side
       </div>
-    </nz-tabs>
+    </div>
     <div
       id="operator-tabs"
       *ngIf="openOperatorIds.length > 0">
       <div
         *ngFor="let operatorId of openOperatorIds"
         class="operator-tab"
-        [class.active]="operatorId === currentOperatorId">
+        [class.active]="operatorId === currentOperatorId"
+        [class.split]="operatorId === splitOperatorId"
+        draggable="true"
+        (dragstart)="onTabDragStart($event, operatorId)"
+        (dragend)="onTabDragEnd()">
         <button
           type="button"
           class="operator-tab-label"
@@ -131,6 +173,17 @@
             class="operator-tab-error"
             aria-label="failed"></span>
           {{ tabLabel(operatorId) }}
+        </button>
+        <button
+          *ngIf="operatorId !== currentOperatorId && operatorId !== splitOperatorId"
+          type="button"
+          class="operator-tab-split"
+          nz-tooltip="Compare side by side"
+          [attr.aria-label]="'Compare ' + tabLabel(operatorId) + ' side by side'"
+          (click)="openSplit(operatorId)">
+          <span
+            nz-icon
+            nzType="column-width"></span>
         </button>
         <button
           type="button"

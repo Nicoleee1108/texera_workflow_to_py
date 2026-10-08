@@ -596,14 +596,14 @@ export class WorkflowEditorComponent implements OnInit, AfterViewInit, OnDestroy
   }
 
   /**
-   * Shows the hovered operator's result preview. Off while the heat-map overlay is on, whose own
-   * tooltip answers the hover then.
+   * Shows the hovered operator's result preview, unless Layers > Result preview is off. Also off
+   * while the heat-map overlay is on, whose own tooltip answers the hover then.
    */
   private handleResultPreviewHover(): void {
     fromJointPaperEvent(this.paper, "element:mouseenter")
       .pipe(untilDestroyed(this))
       .subscribe(([elementView, evt]) => {
-        if (this.wrapper.getHeatmapView() !== null) {
+        if (this.wrapper.getHeatmapView() !== null || !this.wrapper.isResultPreviewEnabled()) {
           return;
         }
         const operatorId = elementView.model.id.toString();

@@ -114,6 +114,12 @@ export class ResultPanelComponent implements OnInit, OnDestroy {
   // currentOperatorId is the tab being shown
   openOperatorIds: string[] = [];
 
+  // the operator whose result sits beside the shown one, for comparing two results
+  splitOperatorId?: string;
+  // the tab being dragged, and whether it is over the spot that opens it beside the shown one
+  draggingOperatorId?: string;
+  dropZoneActive = false;
+
   previewWorkflowVersion: boolean = false;
 
   constructor(
@@ -207,8 +213,7 @@ export class ResultPanelComponent implements OnInit, OnDestroy {
             .filter(operatorId => this.workflowResultService.hasAnyResult(operatorId));
 
           if (resultOperators.length > 0) {
-            // a finished run opens one tab per result, in place of whatever was open before it
-            this.openOperatorIds = [...resultOperators];
+            // a finished run shows one result; the others open as the user clicks their operators
             if (!(currentlyHighlighted.length == 1 && resultOperators.includes(currentlyHighlighted[0]))) {
               this.workflowActionService.getJointGraphWrapper().unhighlightOperators(...currentlyHighlighted);
               this.workflowActionService.getJointGraphWrapper().highlightOperators(resultOperators[0]);
@@ -247,6 +252,7 @@ export class ResultPanelComponent implements OnInit, OnDestroy {
         this.clearResultPanel();
         this.currentOperatorId = undefined;
         this.openOperatorIds = [];
+        this.splitOperatorId = undefined;
         this.operatorTitle = "";
         this.changeDetectorRef.detectChanges();
       });
@@ -298,6 +304,8 @@ export class ResultPanelComponent implements OnInit, OnDestroy {
     if (
       isDefined(currentHighlightedOperator) &&
       this.currentOperatorId !== currentHighlightedOperator &&
+      // the operator already shown beside it stays there, so clicking it keeps both in view
+      this.splitOperatorId !== currentHighlightedOperator &&
       (this.openOperatorIds.includes(currentHighlightedOperator) || this.hasSomethingToShow(currentHighlightedOperator))
     ) {
       // clear everything, prepare for state change
@@ -355,6 +363,7 @@ export class ResultPanelComponent implements OnInit, OnDestroy {
     const index = this.openOperatorIds.indexOf(operatorId);
     if (index === -1) return;
     this.openOperatorIds = this.openOperatorIds.filter(id => id !== operatorId);
+    if (operatorId === this.splitOperatorId) this.splitOperatorId = undefined;
     if (operatorId !== this.currentOperatorId) return;
 
     this.clearResultPanel();
@@ -370,6 +379,77 @@ export class ResultPanelComponent implements OnInit, OnDestroy {
     if (wrapper.getCurrentHighlightedOperatorIDs().includes(operatorId)) {
       wrapper.unhighlightOperators(operatorId);
     }
+  }
+
+  /**
+   * Show an open tab's result beside the one shown, and highlight both operators so the canvas
+   * says which two are being compared.
+   */
+  openSplit(operatorId: string): void {
+    if (operatorId === this.currentOperatorId) return;
+    this.splitOperatorId = operatorId;
+    const wrapper = this.workflowActionService.getJointGraphWrapper();
+    const highlighted = wrapper.getCurrentHighlightedOperatorIDs();
+    const both = [this.currentOperatorId, operatorId].filter(isDefined);
+    wrapper.unhighlightOperators(...highlighted.filter(id => !both.includes(id)));
+    wrapper.setMultiSelectMode(true);
+    wrapper.highlightOperators(...both.filter(id => !highlighted.includes(id)));
+    wrapper.setMultiSelectMode(false);
+  }
+
+  closeSplit(): void {
+    const closing = this.splitOperatorId;
+    this.splitOperatorId = undefined;
+    const wrapper = this.workflowActionService.getJointGraphWrapper();
+    if (isDefined(closing) && wrapper.getCurrentHighlightedOperatorIDs().includes(closing)) {
+      wrapper.unhighlightOperators(closing);
+    }
+  }
+
+  /** The frame for the side-by-side result: a table or a chart, or nothing if the run kept none. */
+  get splitFrame(): { component: Type<any>; componentInputs: {} } | undefined {
+    const operatorId = this.splitOperatorId;
+    if (!isDefined(operatorId)) return undefined;
+    if (this.workflowResultService.getPaginatedResultService(operatorId)) {
+      return { component: ResultTableFrameComponent, componentInputs: { operatorId } };
+    }
+    if (this.workflowResultService.getResultService(operatorId)) {
+      return { component: VisualizationFrameContentComponent, componentInputs: { operatorId } };
+    }
+    return undefined;
+  }
+
+  onTabDragStart(event: DragEvent, operatorId: string): void {
+    this.draggingOperatorId = operatorId;
+    event.dataTransfer?.setData("text/plain", operatorId);
+    if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
+  }
+
+  onTabDragEnd(): void {
+    this.draggingOperatorId = undefined;
+    this.dropZoneActive = false;
+  }
+
+  /** Dropping a tab on the right half of the result opens it beside the one shown. */
+  onPanesDragOver(event: DragEvent): void {
+    if (!isDefined(this.draggingOperatorId) || this.draggingOperatorId === this.currentOperatorId) return;
+    const panes = event.currentTarget as HTMLElement;
+    const rect = panes.getBoundingClientRect();
+    this.dropZoneActive = event.clientX > rect.left + rect.width / 2;
+    if (this.dropZoneActive) event.preventDefault();
+  }
+
+  onPanesDragLeave(event: DragEvent): void {
+    const panes = event.currentTarget as HTMLElement;
+    if (!panes.contains(event.relatedTarget as Node)) this.dropZoneActive = false;
+  }
+
+  onPanesDrop(event: DragEvent): void {
+    event.preventDefault();
+    const operatorId = this.draggingOperatorId;
+    const open = this.dropZoneActive;
+    this.onTabDragEnd();
+    if (open && isDefined(operatorId)) this.openSplit(operatorId);
   }
 
   tabLabel(operatorId: string): string {
