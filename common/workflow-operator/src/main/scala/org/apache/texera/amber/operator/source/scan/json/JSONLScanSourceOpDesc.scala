@@ -258,31 +258,33 @@ class JSONLScanSourceOpDesc extends ScanSourceOpDesc with StandaloneCodeGenerato
         "The selected item is a folder or does not exist. Please select an actual .jsonl file from the 'File' dropdown."
       )
     }
-    val stream = DocumentFactory.openReadonlyDocument(uri).asInputStream()
-    val reader = new BufferedReader(new InputStreamReader(stream, fileEncoding.getCharset))
-    var fieldNames = Set[String]()
 
-    val allFields: ArrayBuffer[Map[String, String]] = ArrayBuffer()
+    def readSample(startOffset: Int): ArrayBuffer[Map[String, String]] = {
+      val stream = DocumentFactory.openReadonlyDocument(uri).asInputStream()
+      val reader = new BufferedReader(new InputStreamReader(stream, fileEncoding.getCharset))
+      val sample: ArrayBuffer[Map[String, String]] = ArrayBuffer()
+      reader
+        .lines()
+        .iterator()
+        .asScala
+        .slice(startOffset, startOffset + inferSampleSize)
+        .foreach(line => {
+          val root: JsonNode = objectMapper.readTree(line)
+          if (root.isObject) {
+            sample += JSONToMap(root, flatten = flatten)
+          }
+        })
+      reader.close()
+      sample
+    }
 
-    val startOffset = windowOffset
-    val endOffset =
-      startOffset + inferSampleSize
-    reader
-      .lines()
-      .iterator()
-      .asScala
-      .slice(startOffset, endOffset)
-      .foreach(line => {
-        val root: JsonNode = objectMapper.readTree(line)
-        if (root.isObject) {
-          val fields: Map[String, String] = JSONToMap(root, flatten = flatten)
-          fieldNames = fieldNames.++(fields.keySet)
-          allFields += fields
-        }
-      })
+    // An offset past the last line leaves the window no rows to infer from, so the
+    // sample falls back to the top of the file, which is where CSV always reads it.
+    val windowSample = readSample(windowOffset)
+    val allFields =
+      if (windowSample.isEmpty && windowOffset > 0) readSample(0) else windowSample
 
-    val sortedFieldNames = fieldNames.toList.sorted
-    reader.close()
+    val sortedFieldNames = allFields.flatMap(_.keySet).toSet.toList.sorted
 
     val attributeTypes = inferSchemaFromRows(allFields.iterator.map(fields => {
       val result = ArrayBuffer[Object]()
