@@ -60,9 +60,8 @@ import scala.util.Try
   * something rather than matching nothing.
   *
   * The assembled JSON is read back through the same `objectMapper` Texera uses
-  * everywhere, so enums (`@JsonValue`), `Option` and `@JsonCreator` nested
-  * objects are handled by the deserialization the product already relies on
-  * rather than by reflection written here.
+  * everywhere, so enums, `Option` and `@JsonCreator` nested objects are handled
+  * by the deserialization the product relies on rather than by reflection here.
   */
 object ConfigGenerator {
 
