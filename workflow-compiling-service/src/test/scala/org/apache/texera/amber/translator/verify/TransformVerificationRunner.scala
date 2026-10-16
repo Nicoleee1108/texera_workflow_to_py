@@ -44,6 +44,64 @@ import org.apache.texera.amber.operator.huggingFace.HuggingFaceSpamSMSDetectionO
 import org.apache.texera.amber.operator.sklearn.training.SklearnTrainingOpDesc
 import org.apache.texera.amber.operator.sklearn.training.SklearnTrainingGaussianNaiveBayesOpDesc
 import org.apache.texera.amber.operator.sklearn.testing.SklearnTestingOpDesc
+import org.apache.texera.amber.operator.sklearn.{
+  SklearnAdaptiveBoostingOpDesc,
+  SklearnBaggingOpDesc,
+  SklearnBernoulliNaiveBayesOpDesc,
+  SklearnComplementNaiveBayesOpDesc,
+  SklearnDecisionTreeOpDesc,
+  SklearnExtraTreeOpDesc,
+  SklearnExtraTreesOpDesc,
+  SklearnGradientBoostingOpDesc,
+  SklearnKNNOpDesc,
+  SklearnLinearSVMOpDesc,
+  SklearnLogisticRegressionCVOpDesc,
+  SklearnLogisticRegressionOpDesc,
+  SklearnMultiLayerPerceptronOpDesc,
+  SklearnMultinomialNaiveBayesOpDesc,
+  SklearnNearestCentroidOpDesc,
+  SklearnPassiveAggressiveOpDesc,
+  SklearnPerceptronOpDesc,
+  SklearnPredictionOpDesc,
+  SklearnProbabilityCalibrationOpDesc,
+  SklearnRandomForestOpDesc,
+  SklearnRidgeCVOpDesc,
+  SklearnRidgeOpDesc,
+  SklearnSDGOpDesc,
+  SklearnSVMOpDesc
+}
+import org.apache.texera.amber.operator.sklearn.training.{
+  SklearnTrainingAdaptiveBoostingOpDesc,
+  SklearnTrainingBaggingOpDesc,
+  SklearnTrainingBernoulliNaiveBayesOpDesc,
+  SklearnTrainingComplementNaiveBayesOpDesc,
+  SklearnTrainingDecisionTreeOpDesc,
+  SklearnTrainingExtraTreeOpDesc,
+  SklearnTrainingExtraTreesOpDesc,
+  SklearnTrainingGradientBoostingOpDesc,
+  SklearnTrainingKNNOpDesc,
+  SklearnTrainingLinearRegressionOpDesc,
+  SklearnTrainingLinearSVMOpDesc,
+  SklearnTrainingLogisticRegressionCVOpDesc,
+  SklearnTrainingLogisticRegressionOpDesc,
+  SklearnTrainingMultiLayerPerceptronOpDesc,
+  SklearnTrainingMultinomialNaiveBayesOpDesc,
+  SklearnTrainingNearestCentroidOpDesc,
+  SklearnTrainingPassiveAggressiveOpDesc,
+  SklearnTrainingPerceptronOpDesc,
+  SklearnTrainingProbabilityCalibrationOpDesc,
+  SklearnTrainingRandomForestOpDesc,
+  SklearnTrainingRidgeCVOpDesc,
+  SklearnTrainingRidgeOpDesc,
+  SklearnTrainingSDGOpDesc,
+  SklearnTrainingSVMOpDesc
+}
+import org.apache.texera.amber.operator.machineLearning.sklearnAdvanced.KNNTrainer.{
+  SklearnAdvancedKNNClassifierTrainerOpDesc,
+  SklearnAdvancedKNNRegressorTrainerOpDesc
+}
+import org.apache.texera.amber.operator.machineLearning.sklearnAdvanced.SVCTrainer.SklearnAdvancedSVCTrainerOpDesc
+import org.apache.texera.amber.operator.machineLearning.sklearnAdvanced.SVRTrainer.SklearnAdvancedSVRTrainerOpDesc
 import org.apache.texera.amber.operator.substringSearch.SubstringSearchOpDesc
 import org.apache.texera.amber.operator.typecasting.TypeCastingOpDesc
 import org.apache.texera.amber.operator.unneststring.UnnestStringOpDesc
@@ -495,7 +553,84 @@ object TransformVerificationRunner {
             "spliced a\"b fails at the conversion rather than at any escaping"
         )
       )
-    ) ++ denseOnly ++ noRowsToFit
+    ) ++ denseOnly ++ noRowsToFit ++ refusesNonFinite
+  }
+
+  // sklearn checks its input for finite values before it fits or predicts, and
+  // raises on a NaN or an infinity alike. Both paths call the same library, so
+  // both refuse the same table; which value it names first depends on how the
+  // column arrived, and the run fails either way. Listed one by one rather than
+  // by family: the two dummy classifiers never read a feature, and they pass.
+  private def refusesNonFinite: Seq[NotRun] = {
+    val notFinite = ByDesign(
+      "the library refuses a NaN or an infinity in what it fits, predicts or draws, " +
+        "and both paths call it, so both raise on this table"
+    )
+    for {
+      op <- Seq[Class[_ <: LogicalOp]](
+        classOf[SklearnAdaptiveBoostingOpDesc],
+        classOf[SklearnAdvancedKNNClassifierTrainerOpDesc],
+        classOf[SklearnAdvancedKNNRegressorTrainerOpDesc],
+        classOf[SklearnAdvancedSVCTrainerOpDesc],
+        classOf[SklearnAdvancedSVRTrainerOpDesc],
+        classOf[SklearnBaggingOpDesc],
+        classOf[SklearnBernoulliNaiveBayesOpDesc],
+        classOf[SklearnComplementNaiveBayesOpDesc],
+        classOf[SklearnDecisionTreeOpDesc],
+        classOf[SklearnExtraTreeOpDesc],
+        classOf[SklearnExtraTreesOpDesc],
+        classOf[SklearnGaussianNaiveBayesOpDesc],
+        classOf[SklearnGradientBoostingOpDesc],
+        classOf[SklearnKNNOpDesc],
+        classOf[SklearnLinearRegressionOpDesc],
+        classOf[SklearnLinearSVMOpDesc],
+        classOf[SklearnLogisticRegressionCVOpDesc],
+        classOf[SklearnLogisticRegressionOpDesc],
+        classOf[SklearnMultiLayerPerceptronOpDesc],
+        classOf[SklearnMultinomialNaiveBayesOpDesc],
+        classOf[SklearnNearestCentroidOpDesc],
+        classOf[SklearnPassiveAggressiveOpDesc],
+        classOf[SklearnPerceptronOpDesc],
+        classOf[SklearnPredictionOpDesc],
+        classOf[SklearnProbabilityCalibrationOpDesc],
+        classOf[SklearnRandomForestOpDesc],
+        classOf[SklearnRidgeCVOpDesc],
+        classOf[SklearnRidgeOpDesc],
+        classOf[SklearnSDGOpDesc],
+        classOf[SklearnSVMOpDesc],
+        classOf[SklearnTestingOpDesc],
+        classOf[SklearnTrainingAdaptiveBoostingOpDesc],
+        classOf[SklearnTrainingBaggingOpDesc],
+        classOf[SklearnTrainingBernoulliNaiveBayesOpDesc],
+        classOf[SklearnTrainingComplementNaiveBayesOpDesc],
+        classOf[SklearnTrainingDecisionTreeOpDesc],
+        classOf[SklearnTrainingExtraTreeOpDesc],
+        classOf[SklearnTrainingExtraTreesOpDesc],
+        classOf[SklearnTrainingGaussianNaiveBayesOpDesc],
+        classOf[SklearnTrainingGradientBoostingOpDesc],
+        classOf[SklearnTrainingKNNOpDesc],
+        classOf[SklearnTrainingLinearRegressionOpDesc],
+        classOf[SklearnTrainingLinearSVMOpDesc],
+        classOf[SklearnTrainingLogisticRegressionCVOpDesc],
+        classOf[SklearnTrainingLogisticRegressionOpDesc],
+        classOf[SklearnTrainingMultiLayerPerceptronOpDesc],
+        classOf[SklearnTrainingMultinomialNaiveBayesOpDesc],
+        classOf[SklearnTrainingNearestCentroidOpDesc],
+        classOf[SklearnTrainingPassiveAggressiveOpDesc],
+        classOf[SklearnTrainingPerceptronOpDesc],
+        classOf[SklearnTrainingProbabilityCalibrationOpDesc],
+        classOf[SklearnTrainingRandomForestOpDesc],
+        classOf[SklearnTrainingRidgeCVOpDesc],
+        classOf[SklearnTrainingRidgeOpDesc],
+        classOf[SklearnTrainingSDGOpDesc],
+        classOf[SklearnTrainingSVMOpDesc],
+        // The charts whose library refuses one: Bubble's marker size, the
+        // Contour fit and the Dendrogram distance matrix.
+        classOf[BubbleChartOpDesc],
+        classOf[ContourPlotOpDesc],
+        classOf[DendrogramOpDesc]
+      )
+    } yield NotRun(op, RunKind.SpecialDoubles, notFinite)
   }
 
   /** Every kind of run withheld from this operator, with why. One entry per kind:
