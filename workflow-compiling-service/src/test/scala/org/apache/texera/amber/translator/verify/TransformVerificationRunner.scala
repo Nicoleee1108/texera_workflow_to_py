@@ -217,6 +217,7 @@ object TransformVerificationRunner {
   object RunKind {
     val Nulls = "nulls"
     val EmptyTable = "emptyTable"
+    val SpecialDoubles = "specialDoubles"
     val EnumSweep = "enumSweep"
     val HostileText = "hostileText"
     val CountVectorizerText = "countVectorizer_text"
@@ -706,6 +707,9 @@ object TransformVerificationRunner {
             handler.nullsKeepFilled.toSeq.flatMap(
               curatedNullsCase(opClass, op, in, testRoot, _)
             ) ++
+            handler.nullsKeepFilled.toSeq.flatMap(
+              curatedSpecialDoublesCase(opClass, op, in, testRoot, _)
+            ) ++
             curatedEmptyTableCase(opClass, op, in, testRoot)
         case None =>
           val fixture = fixtureFor(opClass)
@@ -729,6 +733,7 @@ object TransformVerificationRunner {
           vs.filterNot { case (label, _) => notRun(opClass, kindOf(label)) }
             .map { case (label, o) => (label, o, in) } ++
             nullsCase(opClass, vs.head._2, testRoot, fixture) ++
+            specialDoublesCase(opClass, vs.head._2, testRoot, fixture) ++
             emptyTableCase(opClass, vs.head._2, testRoot, fixture) ++
             altScenariosFor(opClass).flatMap { alt =>
               // Each scenario writes under its own directory: two tables in one
@@ -879,6 +884,60 @@ object TransformVerificationRunner {
       }
       Seq((RunKind.EmptyTable, base, emptied))
     }
+
+  /** One more run per operator, on the same table with NaN, both infinities, -0.0
+    * and a null in every DOUBLE column (see [[SharedFixture.specialDoublesPerColumn]]).
+    * Like [[nullsCase]] it takes the base config. A table with no DOUBLE column the
+    * values could go in gets no run, since it would be the base table again.
+    */
+  private def specialDoublesCase(
+      opClass: Class[_ <: LogicalOp],
+      base: LogicalOp,
+      testRoot: Path,
+      fixture: SharedFixture
+  ): Seq[(String, LogicalOp, Map[PortIdentity, Path])] =
+    if (notRun(opClass, RunKind.SpecialDoubles) || !fixture.hasSpecialDoubleColumn) Seq.empty
+    else {
+      val dir = testRoot.resolve("special-doubles-input")
+      Files.createDirectories(dir)
+      val in = fixture.writeSpecialDoubles(dir, base.operatorInfo.inputPorts.size)
+      Seq((RunKind.SpecialDoubles, base, in))
+    }
+
+  /** [[specialDoublesCase]] for the curated tier, read back and rewritten the way
+    * [[curatedNullsCase]] is, and opted into by the same `nullsKeepFilled`: a
+    * column the handler holds filled holds its ordinary numbers too.
+    */
+  private def curatedSpecialDoublesCase(
+      opClass: Class[_ <: LogicalOp],
+      base: LogicalOp,
+      inputs: Map[PortIdentity, Path],
+      testRoot: Path,
+      keepFilled: Set[String]
+  ): Seq[(String, LogicalOp, Map[PortIdentity, Path])] = {
+    val schemas = inputs.map { case (portId, path) => portId -> TupleIO.readSchemaSidecar(path) }
+    if (
+      notRun(opClass, RunKind.SpecialDoubles) ||
+      schemas.values.forall(SharedFixture.specialDoubleColumns(_, keepFilled).isEmpty)
+    ) Seq.empty
+    else {
+      val dir = testRoot.resolve("special-doubles-input")
+      Files.createDirectories(dir)
+      val rewritten = inputs.map {
+        case (portId, path) =>
+          val schema = schemas(portId)
+          val rows = TupleIO.readTuples(path, schema).toSeq
+          val out = dir.resolve(path.getFileName.toString)
+          TupleIO.writeTuples(
+            out,
+            SharedFixture.specialDoublesPerColumn(rows, schema, keepFilled).iterator,
+            schema
+          )
+          portId -> out
+      }
+      Seq((RunKind.SpecialDoubles, base, rewritten))
+    }
+  }
 
   /** The schema of each input file, keyed by port index — what a curated handler
     * actually wrote, read back off the sidecar its writer drops. A file without one

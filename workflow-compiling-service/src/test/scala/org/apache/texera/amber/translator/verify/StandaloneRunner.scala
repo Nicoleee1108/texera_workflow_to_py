@@ -296,6 +296,38 @@ object StandaloneRunner extends LazyLogging {
       sb.append("\n")
     }
 
+    // `read_json` reads the engine's "NaN" and a null as one float64 NaN, while
+    // the engine still holds them apart. A source hands a column holding a real
+    // NaN over as Float64, which keeps them apart too, and an ordinary column as
+    // float64. Only the columns that hold one are changed, so every other run
+    // keeps the float64 it had.
+    sb.append("def _texera_verify_doubles(_path, _columns):\n")
+    sb.append(
+      "    _special = {'NaN': float('nan'), 'Infinity': float('inf'), " +
+        "'-Infinity': float('-inf')}\n"
+    )
+    sb.append("    _values = {_c: [] for _c in _columns}\n")
+    sb.append("    with open(_path, 'r', encoding='utf-8') as _f:\n")
+    sb.append("        for _line in _f:\n")
+    sb.append("            _line = _line.strip()\n")
+    sb.append("            if not _line:\n")
+    sb.append("                continue\n")
+    sb.append("            _row = json.loads(_line)\n")
+    sb.append("            for _c in _columns:\n")
+    sb.append("                _values[_c].append(_row.get(_c))\n")
+    sb.append("    _out = {}\n")
+    sb.append("    for _c, _v in _values.items():\n")
+    sb.append("        if 'NaN' in _v:\n")
+    sb.append("            _out[_c] = pd.arrays.FloatingArray(\n")
+    sb.append(
+      "                pd.array([0.0 if _x is None else _special.get(_x, _x) " +
+        "for _x in _v], dtype='float64').to_numpy(),\n"
+    )
+    sb.append("                pd.array([_x is None for _x in _v], dtype=bool).to_numpy(),\n")
+    sb.append("            )\n")
+    sb.append("    return _out\n")
+    sb.append("\n")
+
     // TIMESTAMP columns are handed to the operator as datetime64 (see the
     // prologue below) to match the schema-typed runtime path, but the runtime
     // path serializes a TIMESTAMP back out with java.sql.Timestamp.toString —
@@ -432,6 +464,15 @@ object StandaloneRunner extends LazyLogging {
         doubleColumns(path).foreach { col =>
           sb.append(s"if ${py(col)} in in${n}df.columns:\n")
           sb.append(s"    in${n}df[${py(col)}] = in${n}df[${py(col)}].astype('float64')\n")
+        }
+        doubleColumns(path) match {
+          case Seq() => ()
+          case cols =>
+            val names = cols.map(py).mkString(", ")
+            sb.append(
+              s"for _c, _a in _texera_verify_doubles(${py(path.toString)}, [$names]).items():\n"
+            )
+            sb.append(s"    in${n}df[_c] = _a\n")
         }
         // A boolean column the fixture punched a hole in comes back as float64,
         // so the operator is handed 1.0 and 0.0 where the run had true and
