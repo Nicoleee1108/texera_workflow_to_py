@@ -110,7 +110,8 @@ object StandaloneRunner extends LazyLogging {
         gen.standaloneHelpers(),
         gen.standaloneImports(),
         exactIntegers,
-        integralOutputColumns(outputSchemas, outputPaths.keys.toSeq),
+        declaredOutputColumns(outputSchemas, outputPaths.keys.toSeq, IntegralTypes),
+        declaredOutputColumns(outputSchemas, outputPaths.keys.toSeq, Set(AttributeType.DOUBLE)),
         gen.standaloneSourceName()
       )
     Files.write(scriptPath, source.getBytes(StandardCharsets.UTF_8))
@@ -181,6 +182,7 @@ object StandaloneRunner extends LazyLogging {
       imports: Seq[String],
       exactIntegers: Boolean,
       integralOutputs: Map[Int, Seq[String]],
+      doubleOutputs: Map[Int, Seq[String]],
       sourceFileName: Option[String]
   ): String = {
     val sb = new StringBuilder
@@ -234,6 +236,31 @@ object StandaloneRunner extends LazyLogging {
       "            df[_c] = df[_c].map(lambda _v: base64.b64encode(pickle.dumps(_v)).decode('ascii') " +
         "if not isinstance(_v, (str, int, float, bool, type(None))) else _v)\n"
     )
+    sb.append("    return df\n")
+    sb.append("\n")
+
+    // The engine writes NaN and the infinities as text and keeps -0.0's sign;
+    // to_json writes the first three as null and -0.0 as 0.0, so a script that
+    // answered NaN where the engine answered null compared equal. isna() is the
+    // column's own answer: in float64 a NaN is a null, in Float64 only the mask is.
+    sb.append("def _texera_encode_doubles(df, columns):\n")
+    sb.append("    def _texera_double(_v):\n")
+    sb.append("        try:\n")
+    sb.append("            _f = float(_v)\n")
+    sb.append("        except (TypeError, ValueError):\n")
+    sb.append("            return _v\n")
+    sb.append("        if _f != _f:\n")
+    sb.append("            return 'NaN'\n")
+    sb.append("        if _f in (float('inf'), float('-inf')):\n")
+    sb.append("            return 'Infinity' if _f > 0 else '-Infinity'\n")
+    sb.append("        if _f == 0.0 and str(_f).startswith('-'):\n")
+    sb.append("            return '-0.0'\n")
+    sb.append("        return _f\n")
+    sb.append("    for _c in columns:\n")
+    sb.append("        if _c in df.columns:\n")
+    sb.append("            _null = df[_c].isna()\n")
+    sb.append("            df[_c] = [None if _n else _texera_double(_v)\n")
+    sb.append("                      for _v, _n in zip(df[_c].to_numpy(dtype=object), _null)]\n")
     sb.append("    return df\n")
     sb.append("\n")
 
@@ -502,8 +529,10 @@ object StandaloneRunner extends LazyLogging {
           s"json.dump({str(_c): str(_t) for _c, _t in out${n}df.dtypes.items()}, " +
             s"open(${py(path.toString + ".dtypes.json")}, 'w'))\n"
         )
+        val doubles = doubleOutputs.getOrElse(n, Seq.empty).map(py).mkString(", ")
         sb.append(
-          s"_texera_encode_obj_cols(_texera_encode_ts_cols($frame))" +
+          s"_texera_encode_obj_cols(_texera_encode_ts_cols(" +
+            s"_texera_encode_doubles($frame, [$doubles])))" +
             s".to_json(${py(path.toString)}, orient='records', lines=True)\n"
         )
     }
@@ -589,16 +618,19 @@ object StandaloneRunner extends LazyLogging {
     * survive that. A caller with no schemas to hand over names no column, and
     * the epilogue then writes each frame as pandas holds it.
     */
-  private def integralOutputColumns(
+  private val IntegralTypes: Set[AttributeType] = Set(AttributeType.INTEGER, AttributeType.LONG)
+
+  private def declaredOutputColumns(
       outputSchemas: Map[PortIdentity, Schema],
-      ports: Seq[Int]
+      ports: Seq[Int],
+      types: Set[AttributeType]
   ): Map[Int, Seq[String]] =
     ports.map { port =>
       val declared = outputSchemas
         .get(PortIdentity(port - 1))
         .toSeq
         .flatMap(_.getAttributes)
-        .filter(a => a.getType == AttributeType.INTEGER || a.getType == AttributeType.LONG)
+        .filter(a => types.contains(a.getType))
         .map(_.getName)
       port -> declared
     }.toMap
