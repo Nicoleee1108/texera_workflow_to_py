@@ -107,7 +107,8 @@ object StandaloneRunner extends LazyLogging {
         gen.generateStandaloneCode(inputSchemas),
         inputs,
         outputPaths,
-        gen.standaloneHelpers(),
+        gen.standaloneHelpers() ++ gen.standaloneInputAdapter().map(_.definition),
+        gen.standaloneInputAdapter().map(_.name),
         gen.standaloneImports(),
         exactIntegers,
         declaredOutputColumns(outputSchemas, outputPaths.keys.toSeq, IntegralTypes),
@@ -179,6 +180,7 @@ object StandaloneRunner extends LazyLogging {
       inputs: Map[Int, Path],
       outputs: Map[Int, Path],
       helpers: Seq[String],
+      inputAdapter: Option[String],
       imports: Seq[String],
       exactIntegers: Boolean,
       integralOutputs: Map[Int, Seq[String]],
@@ -546,6 +548,13 @@ object StandaloneRunner extends LazyLogging {
     // Without this the body reads a bare `sourceFile` that was never bound.
     sourceFileName.foreach { name =>
       sb.append(s"${StandaloneCodeGenerator.SourceFilePlaceholder} = ${py(name)}\n\n")
+    }
+
+    // What the translator feeds such an operator, so the run checks the script a
+    // real export writes rather than the prologue's frames as they were read.
+    inputAdapter.foreach { adapter =>
+      inputs.keys.toSeq.sorted.foreach(n => sb.append(s"in${n}df = $adapter(in${n}df)\n"))
+      sb.append("\n")
     }
 
     sb.append("# ── operator body ──\n")
